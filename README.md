@@ -47,3 +47,31 @@ For production, register an organization-approved Microsoft Entra ID application
 ## Next milestone
 
 Read-only Microsoft Graph connection and timezone-safe recurring event expansion, followed by an explicit approval-gated write pipeline and durable audit history.
+
+
+## v0.2 — Read-only Outlook calendar (requires your Microsoft 365 tenant approval)
+
+The browser prototype now supports **read-only Outlook synchronization** directly through Microsoft Graph. It requests only the delegated `Calendars.Read` scope; it **cannot create, update, or delete Outlook events**, regardless of which focus blocks you approve in the prototype.
+
+### One-time Microsoft Entra setup
+
+1. Ask your Microsoft 365 administrator whether custom app registrations and delegated `Calendars.Read` are permitted in your organization. Do not bypass corporate app policies.
+2. Register a **single-tenant** application in Microsoft Entra ID. Under **Authentication**, add platform **Single-page application** with redirect URI `http://localhost:8000/` (including the final slash).
+3. Under **API permissions**, request delegated Microsoft Graph `Calendars.Read`, and obtain administrator consent if required by policy. No client secret, write scope, or application permission is needed.
+4. Copy the **Directory (tenant) ID** and **Application (client) ID** from the app overview. These are public identifiers, not secrets.
+
+### Launch locally (do not double-click the HTML for Outlook sign-in)
+
+Open a command prompt in the repository folder:
+
+```powershell
+py -m http.server 8000
+```
+
+Then open `http://localhost:8000/` in Microsoft Edge/Chrome. Enter the two Entra IDs in the Outlook panel and click **Connect & sync**. Authenticate with your work account and approve the requested read-only calendar scope if your organization permits it. The app reads up to 42 days of `/me/calendarView` including recurring occurrences, excludes free/working-elsewhere/cancelled/declined events, and generates local proposals from remaining gaps.
+
+The Microsoft authentication library is loaded from Microsoft's CDN, so internet access is required.
+
+**Security notes:** The access token is handled by MSAL in browser session storage; the app never commits credentials or calendar content to GitHub. No calendar event titles are stored by the app. Only derived busy intervals are held in memory. Note that approved/proposed **focus slots** are persisted in localStorage; using the JSON Export button creates an explicitly downloaded file containing focus session times. Browser storage is not suitable for regulated sensitive information.
+
+**Important:** Each sync resets the local prototype plan to avoid treating stale suggestions as valid. The browser-side app has no server, and therefore cannot continually monitor conflicts while closed. Approval remains strictly local; it does **not** reserve time in Outlook. A subsequent phase requires an authorized write workflow and refresh/revalidation before event creation.

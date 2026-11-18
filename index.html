@@ -42,7 +42,7 @@
   </style>
 </head>
 <body>
-<header class="top"><div><h1>Focus Planner <small style="font-size:12px;font-weight:500;opacity:.7">v0.1</small></h1><p>Protect the time you need to do meaningful work.</p></div><span class="badge">Demo mode · No Outlook connection</span></header>
+<header class="top"><div><h1>Focus Planner <small style="font-size:12px;font-weight:500;opacity:.7">v0.1</small></h1><p>Protect the time you need to do meaningful work.</p></div><span class="badge" id="modeBadge">Demo mode · No Outlook connection</span></header>
 <main>
   <section class="card lead"><div><h2>Your six-week focus plan</h2><p>Reserve two hours every weekday, favoring mornings.</p></div>
   <div class="actions"><button class="btn primary" id="generate">Generate plan</button><button class="btn" id="approveAll">Approve all proposals</button><button class="btn" id="export">Export JSON</button></div></section>
@@ -53,7 +53,13 @@
     <div class="card metric"><span>Completed sessions</span><strong id="completed">0</strong></div>
   </section>
   <div class="grid">
-    <aside class="side"><section class="card"><h3>Planning preferences</h3>
+    <aside class="side"><section class="card"><h3>Outlook calendar (read-only)</h3>
+<p class="hint">Connect directly from this browser with an approved Entra SPA registration. No calendar writes.</p>
+<label for="tenantId">Directory (tenant) ID</label><input id="tenantId" type="text" autocomplete="off" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" style="width:100%;padding:9px;border:1px solid #cbd7e4;border-radius:8px">
+<label for="clientId">Application (client) ID</label><input id="clientId" type="text" autocomplete="off" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" style="width:100%;padding:9px;border:1px solid #cbd7e4;border-radius:8px">
+<div class="actions" style="margin-top:12px"><button class="btn primary" id="connectOutlook">Connect &amp; sync</button><button class="btn" id="demoMode">Demo mode</button></div>
+<p class="hint" id="outlookStatus" role="status">Not connected. Serve this app from localhost; see README.</p>
+</section><section class="card"><h3>Planning preferences</h3>
       <div class="setting"><span>Rolling horizon</span><b>6 weeks</b></div>
       <div class="setting"><span>Daily focus target</span><b>2 hours</b></div>
       <div class="setting"><span>Minimum block</span><b>60 minutes</b></div>
@@ -71,6 +77,8 @@
     </section>
   </div><p class="footer">Prototype v0.1 · Simulated availability · Local browser storage · No Microsoft 365 writes</p>
 </main>
-<script src="app.js"></script>
+<script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js" defer></script>
+<script src="outlook.js" defer></script>
+<script src="app.js" defer></script>
 </body>
 </html>

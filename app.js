@@ -11,6 +11,7 @@
   const weekdays = dates => dates.filter(d=>{const w=d.getDay();return w!==0&&w!==6;});
   const overlap=(a,b)=>a.start<b.end&&b.start<a.end;
   const demoMeetings = date => {
+    if(liveMode)return liveBusy?.[date]||[];
     const n=Math.floor((dateFromKey(date)-dateFromKey(anchor))/86400000);
     const result=[];
     // Stable simulated meetings, varied by day and week.
@@ -22,6 +23,8 @@
     return result;
   };
   const anchor=dayKey(new Date());
+  let liveBusy = null;
+  let liveMode = false;
   const createState=()=>({anchor, sessions:[], extraBusy:[], nextId:1});
   let state;
   try{state=JSON.parse(localStorage.getItem(KEY))||createState();if(state.anchor!==anchor||!Array.isArray(state.sessions)||!Array.isArray(state.extraBusy))state=createState();}
@@ -68,6 +71,7 @@
     return added;
   }
   function generate(){
+    if(liveMode&&!liveBusy){say("Sync Outlook calendar before generating proposals.");return;}
     let added=0;
     for(const d of workdays)added+=proposeForDate(dayKey(d));
     store();render();say(added?`Generated ${added} proposals. Approve before reserving.`:"No new eligible gaps found.");
@@ -81,6 +85,7 @@
     s.status=status;store();render();
   }
   function simulate(){
+    if(liveMode){say("Conflict simulation is disabled for live Outlook data. Refresh Outlook to reassess availability.");return;}
     const approved=state.sessions.find(s=>s.status==="approved"&&inHorizon(s.date));
     if(!approved){say("Approve at least one proposed session first.");return;}
     const collision={date:approved.date,start:approved.start,end:approved.end,subject:"New priority meeting"};
@@ -97,6 +102,8 @@
     say(`Meeting displaced ${collisions.length} approved block(s). ${replaced} replacement proposal(s) require approval.`);
   }
   function render(){
+    $("modeBadge").textContent=liveMode?"Outlook · read-only":"Demo mode · No Outlook connection";
+    $("simulate").disabled=liveMode;
     $("target").textContent=(workdays.length*2)+"h";
     const sum=status=>state.sessions.filter(s=>s.status===status).reduce((n,s)=>n+s.end-s.start,0);
     $("reserved").textContent=(sum("approved")/60).toFixed(1)+"h";
@@ -126,7 +133,7 @@
     $("detailTitle").textContent=day.toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"});
     const details=$("detailBody");details.replaceChildren();
     const ss=sessionsOn(selected).sort((a,b)=>a.start-b.start);
-    const meetings=[...demoMeetings(selected),...state.extraBusy.filter(e=>e.date===selected)].sort((a,b)=>a.start-b.start);
+    const meetings=[...demoMeetings(selected),...(liveMode?[]:state.extraBusy.filter(e=>e.date===selected))].sort((a,b)=>a.start-b.start);
     if(!ss.length){const p=document.createElement("p");p.className="hint";p.textContent="No focus sessions yet. Use Generate plan to find available blocks.";details.append(p);}
     for(const s of ss){
       const row=document.createElement("div");row.className="row";
@@ -145,6 +152,27 @@
     const displaced=state.sessions.filter(s=>s.status==="conflicted").length;
     $("insights").textContent=reported.length?`${complete} of ${reported.length} reported sessions completed (${Math.round(100*complete/reported.length)}%). ${displaced} disrupted block(s). Completion is self-reported.`:`No sessions reported yet. ${displaced} blocks displaced. Approve a session, then mark it completed or missed.`;
   }
+  $("connectOutlook").addEventListener("click",async()=>{
+    const button=$("connectOutlook");button.disabled=true;
+    $("outlookStatus").textContent="Connecting and reading calendar…";
+    try {
+      const tenantId=$("tenantId").value.trim(),clientId=$("clientId").value.trim();
+      if(location.protocol==="file:")throw Error("Open on http://localhost:8000/ instead of double-clicking index.html.");
+      await FocusOutlook.setup(tenantId,clientId);
+      const start=new Date(dateFromKey(anchor));const end=plusDays(start,CONFIG.horizonDays);
+      const result=await FocusOutlook.sync(start,end);
+      const byDate=FocusOutlook.toBusyByDate(result.events,start,end);
+      // Distinct plan for the live calendar: do not carry simulated approvals across.
+      liveMode=true;liveBusy=byDate;state=createState();selected=anchor;store();
+      render();$("outlookStatus").textContent=`Connected: ${result.account}. Read ${result.count} Outlook events through ${dayKey(plusDays(end,-1))}. No calendar writes.`;
+      say("Outlook synced. Generate plan to propose available slots.");
+    }catch(e){$("outlookStatus").textContent="Connection failed: "+(e.message||e);}
+    finally{button.disabled=false;}
+  });
+  $("demoMode").addEventListener("click",()=>{
+    liveMode=false;liveBusy=null;state=createState();selected=anchor;store();render();
+    $("outlookStatus").textContent="Demo mode. Live calendar data cleared from memory.";
+  });
   $("generate").addEventListener("click",generate);
   $("approveAll").addEventListener("click",()=>{
     let count=0;for(const s of state.sessions)if(s.status==="proposed"){s.status="approved";count++;}
@@ -153,7 +181,7 @@
   $("simulate").addEventListener("click",simulate);
   $("reset").addEventListener("click",()=>{if(!window.confirm("Reset all demo sessions and feedback?"))return;state=createState();selected=anchor;store();render();say("Demo reset.");});
   $("export").addEventListener("click",()=>{
-    const blob=new Blob([JSON.stringify({config:CONFIG,...state},null,2)],{type:"application/json"});
+    const blob=new Blob([JSON.stringify({config:CONFIG,source:liveMode?"outlook-readonly":"demo",...state},null,2)],{type:"application/json"});
     const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="focus-planner-demo.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
   });
   render();
