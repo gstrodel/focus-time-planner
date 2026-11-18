@@ -83,23 +83,56 @@
       row.append(title,controls);details.append(row);
     }
     renderBookingForm(details);
-    const heading=document.createElement("h4");heading.textContent="Calendar availability";details.append(heading);
-    for(const event of (busy[selected]||[]).sort((a,b)=>a.start-b.start)) {
-      const row=document.createElement("details");row.className="meeting";
-      const summary=document.createElement("summary");
-      const eventTime=event.start===0&&event.end===1440?"All day":time(event.start)+" – "+time(event.end);
-      const status=event.kind==="existing-focus"?"Existing focus":event.status==="oof"?"Out of office":event.status==="tentative"?"Tentative":"Busy";
-      summary.textContent=`${eventTime} · ${event.title||status}`;row.append(summary);
-      const organizer=document.createElement("p");organizer.className="hint";
-      const person=event.organizer||{};
-      organizer.textContent="Organizer: "+(person.name?person.name+(person.email?" <"+person.email+">":""):person.email||"Not included in this extract");row.append(organizer);
-      const description=document.createElement("p");description.className="hint meeting-description";
-      description.textContent=event.description||"No description included in this extract.";row.append(description);
-      const availability=document.createElement("p");availability.className="hint";availability.textContent="Availability: "+status;row.append(availability);details.append(row);
+    renderDayCalendar(details);
+  }
+  function renderDayCalendar(parent) {
+    const heading=document.createElement("h4");heading.textContent="Day calendar";parent.append(heading);
+    const note=document.createElement("p");note.className="hint";
+    note.textContent="Timed events and planned focus · All-day invites are hidden · Times in "+plan.snapshot.timeZone;
+    parent.append(note);
+    const legend=document.createElement("div");legend.className="legend calendar-legend";
+    for(const [kind,label] of [["busy","Meeting"],["tentative","Tentative"],["oof","Out of office"],["free","Free invite"],["existing","Calendar focus"],["proposed","Proposed focus"],["approved","Approved focus"]]){
+      const item=document.createElement("span"),dot=document.createElement("i");dot.className="dot cal-"+kind;item.append(dot,label);legend.append(item);
     }
-    if(!(busy[selected]||[]).length){const p=document.createElement("p");p.className="hint";p.textContent="No blocking calendar events in this extract for this day.";details.append(p);}
-
-
+    parent.append(legend);
+    const events=(P.intervals(plan.snapshot,{includeFree:true})[selected]||[]).filter(e=>!e.allDay).map(e=>({
+      ...e,calendarKind:e.status==="free"?"free":e.kind==="existing-focus"?"existing":e.status==="tentative"?"tentative":e.status==="oof"?"oof":"busy",
+      calendarTitle:e.title||(e.kind==="existing-focus"?"Calendar focus":e.status==="oof"?"Out of office":"Meeting")
+    }));
+    for(const s of plan.sessions.filter(s=>s.date===selected&&["proposed","approved"].includes(s.status)))events.push({...s,calendarKind:s.status,calendarTitle:s.status==="proposed"?"Proposed focus":"Approved focus"});
+    const start=Math.min(P.CONFIG.startMinute,...events.map(e=>Math.floor(e.start/60)*60));
+    const end=Math.max(P.CONFIG.endMinute,...events.map(e=>Math.ceil(e.end/60)*60));
+    const pixelsPerMinute=1.6,height=(end-start)*pixelsPerMinute;
+    const scroll=document.createElement("div");scroll.className="day-calendar-scroll";scroll.tabIndex=0;scroll.setAttribute("aria-label","Day calendar, scroll for more times");
+    const calendar=document.createElement("div");calendar.className="day-calendar";calendar.style.height=height+"px";
+    const grid=document.createElement("div");grid.className="calendar-grid";grid.setAttribute("aria-hidden","true");calendar.append(grid);
+    const shade=(a,b)=>{if(b<=a)return;const block=document.createElement("div");block.className="calendar-outside-work";block.style.top=(a-start)*pixelsPerMinute+"px";block.style.height=(b-a)*pixelsPerMinute+"px";grid.append(block);};
+    shade(start,P.CONFIG.startMinute);shade(P.CONFIG.endMinute,end);
+    for(let minute=start;minute<=end;minute+=30){
+      const tick=document.createElement("div");tick.className="calendar-tick"+(minute%60===0?" hour":"");tick.style.top=(minute-start)*pixelsPerMinute+"px";
+      const label=document.createElement("span");label.textContent=time(minute);tick.append(label);calendar.append(tick);
+    }
+    const boxes=document.createElement("div");boxes.className="calendar-boxes";boxes.setAttribute("role","list");boxes.setAttribute("aria-label","Timed events and focus for "+label(selected));calendar.append(boxes);
+    // Partition each overlapping group into lanes. Events that touch do not overlap.
+    const sorted=events.sort((a,b)=>a.start-b.start||b.end-a.end);
+    let group=[],groupEnd=-1;
+    const draw=()=>{
+      const laneEnds=[];
+      for(const e of group){let lane=laneEnds.findIndex(end=>end<=e.start);if(lane<0)lane=laneEnds.length;laneEnds[lane]=e.end;e.lane=lane;}
+      for(const e of group){
+        const status={busy:"Busy",tentative:"Tentative",oof:"Out of office",free:"Free",existing:"On calendar",proposed:"Proposed locally",approved:"Approved locally"}[e.calendarKind];
+        const fullLabel=`${time(e.start)} – ${time(e.end)} · ${e.calendarTitle} · ${status}`;
+        const box=document.createElement("div");box.className="calendar-event cal-"+e.calendarKind;box.setAttribute("role","listitem");box.setAttribute("aria-label",fullLabel);box.title=fullLabel;box.tabIndex=0;
+        box.style.top=(e.start-start)*pixelsPerMinute+"px";box.style.height=(e.end-e.start)*pixelsPerMinute+"px";
+        box.style.left=`calc(${e.lane*100/laneEnds.length}% + 3px)`;box.style.width=`calc(${100/laneEnds.length}% - 6px)`;
+        const title=document.createElement("strong");title.textContent=e.calendarTitle;
+        const timing=document.createElement("span");timing.textContent=time(e.start)+" – "+time(e.end);box.append(title,timing);boxes.append(box);
+      }
+    };
+    for(const e of sorted){if(group.length&&e.start>=groupEnd){draw();group=[];groupEnd=-1;}group.push(e);groupEnd=Math.max(groupEnd,e.end);}
+    if(group.length)draw();
+    scroll.append(calendar);parent.append(scroll);
+    if(!events.length){const empty=document.createElement("p");empty.className="hint";empty.textContent="No timed events or focus blocks to show for this day.";parent.append(empty);}
   }
   function renderBookingForm(parent) {
     const heading=document.createElement("h4");heading.textContent="Add more focus time";parent.append(heading);
@@ -153,9 +186,10 @@
   });
   let saved=null;
   try{saved=localStorage.getItem(KEY);}catch(_){say("Browser storage is unavailable. Download your plan to keep your results.");}
-  if(saved){try{plan=P.validatePlan(JSON.parse(saved));selected=P.workdays(plan.snapshot)[0];$("saveStatus").textContent="Restored saved plan";}catch(_){say("The saved plan could not be restored. It has not been overwritten; import a valid backup to continue.");}}
+  if(saved){try{plan=P.validatePlan(JSON.parse(saved));selected=P.workdays(plan.snapshot)[0];if(persist(""))$("saveStatus").textContent="Restored saved plan";}catch(_){say("The saved plan could not be restored. It has not been overwritten; import a valid backup to continue.");}}
   else if($("bootstrap")){
     try{open(JSON.parse($("bootstrap").textContent),true);}catch(e){say("Could not load the bundled extract: "+e.message);}
   }
   render();
 })();
+

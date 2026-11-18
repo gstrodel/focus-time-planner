@@ -1,4 +1,4 @@
-# Focus Planner v0.5
+# Focus Planner v0.6
 
 An offline, browser-based six-week focus planner using an Outlook calendar **extract**. No Microsoft app registration or sign-in is needed for this release. Import your extract, review proposals, approve or reject them, and save the results. Approvals do not create Outlook appointments.
 
@@ -27,7 +27,7 @@ No real calendar extract or generated personal plan belongs in this repository. 
 | Commute buffer | Optional checkbox excludes 9:00–9:30 from new focus proposals |
 | Approval | Required; saved locally only |
 
-Meeting preference and focus availability are separate. Calendar events already before 9:30 still block scheduling. No new proposals are placed in past time; today's proposals begin at the next quarter hour. Existing calendar focus counts toward the target only in uninterrupted, unconflicted blocks of at least 60 minutes inside work hours. Overlapping existing focus is counted once. Busy, tentative, unknown, and out-of-office events block planning; free, working-elsewhere, cancelled, and declined events are excluded when preparing the extract. All-day and multi-day events are expanded across covered dates.
+Meeting preference and focus availability are separate. Calendar events already before 9:30 still block scheduling. No new proposals are placed in past time; today's proposals begin at the next quarter hour. Existing calendar focus counts toward the target only in uninterrupted, unconflicted blocks of at least 60 minutes inside work hours. Overlapping existing focus is counted once. Busy, tentative, unknown, and out-of-office events block planning; working-elsewhere, cancelled, and declined events are excluded when preparing the extract. Free events may be included for display but do not block planning. All-day and multi-day events are expanded across covered dates.
 
 Generate is idempotent: it retains decisions and first seeks a continuous two-hour block, preferring mornings among qualifying windows. If no such window is available, it fills up to the daily total in blocks of at least 60 minutes and flags the missing continuous block. Rejected slots are avoided by automatic generation until rebuilding the plan. Manual additions can deliberately reuse a rejected window. Days without sufficient capacity show their shortfall. Time off still appears as a target shortfall; holiday calendars and adjusted weekday targets are not inferred.
 
@@ -66,7 +66,11 @@ The upstream extract must include **all** relevant events in the window, includi
 }
 ```
 
-Event timestamps require explicit UTC or numeric offsets. `status` is `busy`, `tentative`, `oof`, or `unknown`; `kind` is `busy` or `existing-focus`. Local pseudonymous IDs suffice. Optional `title`, plain-text `description`, and `organizer` (`name` and `email`) are retained for meeting review. Expand a meeting under Calendar availability to see its description and organizer. Outlook organizer may differ from a delegate who sent the invitation; this release does not retrieve the original invitation message sender. Bodies render as literal text, never executable markup. Attendee lists and original Outlook IDs are omitted. These details remain in your private extract, browser storage and downloaded plan, and are excluded from git. The planner uses the snapshot's timezone rather than the computer's timezone, including daylight-saving transitions. An extract cannot prove its own upstream completeness; the producer is responsible for the `complete` assertion.
+Event timestamps require explicit UTC or numeric offsets. `status` is `busy`, `tentative`, `oof`, `unknown`, or `free`; `kind` is `busy` or `existing-focus`. Local pseudonymous IDs suffice. Optional `title` and `allDay` are retained. Meeting descriptions and organizer metadata are discarded when importing an extract or saved plan, including older backups. Restored browser plans are saved back without those fields while retaining planning decisions. New extracts should omit meeting descriptions, organizers and attendee lists.
+
+The selected day's **Day calendar** shows timed events and local focus proposals/approvals against a half-hour grid. Boxes match event durations; overlaps appear in separate columns. Titles and times remain readable as literal text, with full labels available on hover or keyboard focus. All-day events are hidden regardless of availability status. This is a display filter: busy/tentative all-day events and all-day PTO still affect scheduling and meeting calculations. Free events never block planning or count as meetings. Timed events crossing midnight remain visible on each affected day. The grid starts with work hours and expands for earlier/later timed events; it scrolls on long days and narrow screens.
+
+The planner uses the snapshot's timezone rather than the computer's timezone, including daylight-saving transitions. An extract cannot prove its own upstream completeness; the producer is responsible for the `complete` assertion.
 
 ## Persistence and limits
 
@@ -91,4 +95,5 @@ node tests/browser.cjs
 ```
 
 It covers import, approvals, rejection, reload, download/restore, malformed imports, storage failure, an offline load and a narrow viewport. `PLAYWRIGHT_MODULE` and `CHROMIUM_PATH` can point to an existing local installation.
+
 

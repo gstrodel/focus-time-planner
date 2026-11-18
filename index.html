@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#13263c">
-  <title>Focus Planner — v0.5</title>
+  <title>Focus Planner — v0.6</title>
   <style>
     :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:#14253b;background:#f3f6fa;font-synthesis:none}
     *{box-sizing:border-box}body{margin:0}button{font:inherit;cursor:pointer}button:disabled{cursor:not-allowed;opacity:.45}
@@ -37,13 +37,27 @@
     .tag.good{background:#e2f5e9;color:#147b4e}.tag.warn{background:#ffebe5;color:#9f4429}
     .block-actions{display:flex;gap:6px;flex-wrap:wrap}.block-actions button{font-size:12px;padding:7px 9px}
     .booking-form{padding:14px;background:#f3f6fa;border-radius:10px;margin-top:12px}.booking-form select{font:inherit;width:100%;padding:9px;border:1px solid #cbd7e4;border-radius:8px;background:white}.booking-form button{margin-top:14px}
-    .meeting{padding:12px 0;border-bottom:1px solid #e1e8f0}.meeting summary{cursor:pointer;font-size:13px;font-weight:650;line-height:1.5}.meeting-description{white-space:pre-wrap;overflow-wrap:anywhere}.footer{margin:24px 0;color:#758499;font-size:12px;text-align:center}
+    .footer{margin:24px 0;color:#758499;font-size:12px;text-align:center}
+    .grid>section{min-width:0}.calendar-legend{margin:12px 0 18px;gap:9px 14px}
+    .day-calendar-scroll{max-height:660px;overflow:auto;border:1px solid #dbe4ef;border-radius:12px;padding:16px 8px 20px 0;background:#fff}
+    .day-calendar{position:relative;margin-left:82px;margin-right:4px}
+    .calendar-grid,.calendar-boxes{position:absolute;inset:0}.calendar-grid{background:#fff;border-left:1px solid #dbe4ef}
+    .calendar-outside-work{position:absolute;left:0;right:0;background:#f0f3f8}
+    .calendar-tick{position:absolute;left:0;right:0;border-top:1px dashed #e6ecf3;pointer-events:none}
+    .calendar-tick.hour{border-top:1px solid #dbe4ef}.calendar-tick span{position:absolute;right:calc(100% + 10px);top:-9px;font-size:11px;white-space:nowrap;color:#617185}
+    .calendar-event{position:absolute;border:1px solid #a2bee2;border-left:4px solid #3973b9;border-radius:6px;padding:5px 7px;overflow:hidden;color:#173d6e;font-size:12px;line-height:1.35;background:#e5effc}
+    .calendar-event strong,.calendar-event span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.calendar-event span{font-size:11px;margin-top:2px}
+    .calendar-event:focus-visible{outline:2px solid #13263c;outline-offset:1px;z-index:2}
+    .cal-busy{background:#e5effc}.cal-tentative{background:repeating-linear-gradient(135deg,#fff4cf,#fff4cf 7px,#fff9e9 7px,#fff9e9 14px);border-color:#c69a2d;color:#674e0c}
+    .cal-oof{background:#eceff3;border-color:#8895a6;color:#445165}.cal-free{background:#fff;border-color:#93a3b8;color:#506176;border-style:dashed}
+    .cal-existing{background:#e9e0f7;border-color:#9874ce;color:#5e398c}.cal-proposed{background:#eef6ff;border-color:#6c9ed9;border-style:dashed;color:#275c9b}
+    .cal-approved{background:#d9f2e7;border-color:#52a982;color:#176043}
     @media(max-width:950px){.grid{grid-template-columns:1fr}.side{grid-template-columns:1fr 1fr}}
     @media(max-width:620px){main{padding:15px}.top{padding:18px}.badge{display:none}.metrics{grid-template-columns:1fr 1fr}.side{grid-template-columns:1fr}.week{gap:4px}.day{min-height:105px;padding:8px 5px}.day .hours{font-size:16px}.day .date{font-size:10px}.day .sub{font-size:9px}}
   </style>
 </head>
 <body>
-<header class="top"><div><h1>Focus Planner <small style="font-size:12px;font-weight:500;opacity:.7">v0.5</small></h1><p>Protect the time you need to do meaningful work.</p></div><span class="badge" id="modeBadge">Calendar extract · Offline prototype</span></header>
+<header class="top"><div><h1>Focus Planner <small style="font-size:12px;font-weight:500;opacity:.7">v0.6</small></h1><p>Protect the time you need to do meaningful work.</p></div><span class="badge" id="modeBadge">Calendar extract · Offline prototype</span></header>
 <main>
   <section class="card lead"><div><h2>Your six-week focus plan</h2><p>Plan at least one continuous two-hour focus block each workday, preferably in the morning. Add more whenever your day allows.</p></div>
   <div class="actions"><button class="btn primary" id="generate">Generate plan</button><button class="btn" id="approveAll">Approve all proposals</button><button class="btn" id="save">Save plan</button><button class="btn" id="export">Download plan</button></div></section>
@@ -57,7 +71,7 @@
   </section>
   <div class="grid">
     <aside class="side"><section class="card"><h3>Your calendar extract</h3>
-<p class="hint">Import your Outlook extract to find focus time and review meeting descriptions and organizers. Import a downloaded plan to restore your planning decisions.</p>
+<p class="hint">Import your Outlook extract to find focus time and view your day on a calendar grid. Import a downloaded plan to restore your planning decisions.</p>
 <label for="import">Calendar extract or saved plan (.json)</label><input id="import" type="file" accept=".json,application/json">
 <p class="hint" id="sourceStatus" role="status"></p>
 <p class="save-status" id="saveStatus" role="status">Changes save automatically in this browser.</p>
@@ -78,9 +92,10 @@
     <section class="card"><div class="panelhead"><h3>Calendar coverage</h3><div class="legend"><span><i class="dot proposed"></i>Proposed</span><span><i class="dot approved"></i>Approved</span><span><i class="dot existing"></i>On calendar</span><span><i class="dot shortfall"></i>Shortfall</span></div></div>
       <p class="hint" id="coverageSummary"></p><div class="weeks" id="weeks"></div><section class="detail"><h3 id="detailTitle">Select a day</h3><div id="detailBody" class="hint">Generate a plan to see suggested sessions.</div></section>
     </section>
-  </div><p class="footer">Prototype v0.5 · Calendar extract · Local browser storage · No Microsoft 365 writes</p>
+  </div><p class="footer">Prototype v0.6 · Calendar extract · Local browser storage · No Microsoft 365 writes</p>
 </main>
 <script src="planner.js" defer></script>
 <script src="app.js" defer></script>
 </body>
 </html>
+

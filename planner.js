@@ -28,30 +28,30 @@
     if (!Array.isArray(input.events) || input.events.length>10000) throw Error("Invalid event list.");
     const ids = new Set();
     const events = input.events.map(e=>{
-      if (!e || typeof e.id!=="string" || !e.id || ids.has(e.id) || !isISO(e.start) || !isISO(e.end) || Date.parse(e.end)<=Date.parse(e.start) || !["busy","tentative","oof","unknown"].includes(e.status) || !["busy","existing-focus"].includes(e.kind)) throw Error("An event is invalid or duplicated. Import stopped; your saved plan is unchanged.");
+      if (!e || typeof e.id!=="string" || !e.id || ids.has(e.id) || !isISO(e.start) || !isISO(e.end) || Date.parse(e.end)<=Date.parse(e.start) || !["busy","tentative","oof","unknown","free"].includes(e.status) || !["busy","existing-focus"].includes(e.kind)) throw Error("An event is invalid or duplicated. Import stopped; your saved plan is unchanged.");
       ids.add(e.id);
       const text=(value,limit)=>{
         if(value===undefined || value===null)return "";
-        if(typeof value!=="string" || value.length>limit)throw Error("Invalid meeting description or organizer metadata.");
+        if(typeof value!=="string" || value.length>limit)throw Error("Invalid meeting title.");
         return value;
       };
       return {id:e.id,start:e.start,end:e.end,status:e.status,kind:e.kind,allDay:!!e.allDay,
-        title:text(e.title,1000),description:text(e.description,1000000),
-        organizer:{name:text(e.organizer?.name,500),email:text(e.organizer?.email,500)}};
+        title:text(e.title,1000)};
     });
     return {schema:input.schema,version:1,source:input.source==="demo"?"demo":"outlook-extract",timeZone:input.timeZone,capturedAt:input.capturedAt,windowStart:input.windowStart,windowEnd:input.windowEnd,complete:true,events};
   }
   function workdays(snapshot) {
     return Array.from({length:42},(_,i)=>addDays(snapshot.windowStart,i)).filter(d=>![0,6].includes(new Date(d+"T12:00:00Z").getUTCDay()));
   }
-  function intervals(snapshot) {
+  function intervals(snapshot, {includeFree=false}={}) {
     const byDate = {};
     for (const event of snapshot.events) {
+      if(event.status==="free"&&!includeFree)continue;
       const a=localParts(event.start,snapshot.timeZone), b=localParts(event.end,snapshot.timeZone);
       for(let date=a.date<snapshot.windowStart?snapshot.windowStart:a.date;date<=b.date && date<snapshot.windowEnd;date=addDays(date,1)) {
         const start=date===a.date?a.minute:0;
         const end=date===b.date?b.minute+((b.seconds || new Date(event.end).getUTCMilliseconds())?1:0):1440;
-        if(end>start)(byDate[date] ||= []).push({id:event.id,start,end,kind:event.kind,status:event.status,title:event.title,description:event.description,organizer:event.organizer});
+        if(end>start)(byDate[date] ||= []).push({id:event.id,start,end,kind:event.kind,status:event.status,title:event.title,allDay:event.allDay});
       }
     }
     return byDate;
@@ -160,3 +160,4 @@
   }
   return {CONFIG,ACTIVE,addDays,localParts,overlap,validateSnapshot,validatePlan,workdays,intervals,merge,gaps,createPlan,scheduled,meetingLoad,hasContinuousFocus,available,addBlock,extendBlock,generate,demo};
 });
+

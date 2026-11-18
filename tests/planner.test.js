@@ -71,10 +71,15 @@ test("saved planning decisions and snapshot survive serialization; invalid impor
  const bad=JSON.parse(JSON.stringify(plan));bad.sessions[1].start=bad.sessions[0].start;bad.sessions[1].date=bad.sessions[0].date;assert.throws(()=>P.validatePlan(bad));
  const collision=P.createPlan(snapshot([event("m","2026-11-18T14:00:00Z","2026-11-18T16:00:00Z")]),NOW);collision.sessions.push({id:1,date:"2026-11-18",start:540,end:600,status:"approved"});collision.nextId=2;assert.throws(()=>P.validatePlan(collision));
 });
-test("meeting titles, literal descriptions and organizers survive import and saved-plan restore",()=>{
- const raw=snapshot([{...event("m","2026-11-18T14:00:00Z","2026-11-18T15:00:00Z"),title:"Planning review",description:"Agenda\n<script>alert('literal text')</script>",organizer:{name:"Meeting Organizer",email:"organizer@example.test"}}]);
- const plan=P.createPlan(raw,NOW);P.generate(plan,NOW);const restored=P.validatePlan(JSON.parse(JSON.stringify(plan)));
- assert.deepEqual(restored.snapshot.events[0],plan.snapshot.events[0]);assert.equal(P.intervals(restored.snapshot)["2026-11-18"][0].description,raw.events[0].description);
- assert.throws(()=>P.validateSnapshot(snapshot([{...raw.events[0],description:{html:"not plain text"}}])));
+test("imports retain titles and all-day flags but discard legacy meeting details",()=>{
+ const raw=snapshot([{...event("m","2026-11-18T14:00:00Z","2026-11-18T15:00:00Z"),allDay:true,title:"Planning review",description:{html:"legacy details"},organizer:{name:"Meeting Organizer",email:"organizer@example.test"}}]);
+ const plan=P.createPlan(raw,NOW),restored=P.validatePlan(JSON.parse(JSON.stringify(plan)));
+ assert.deepEqual(restored.snapshot.events[0],plan.snapshot.events[0]);assert.equal(restored.snapshot.events[0].title,"Planning review");
+ for(const e of [restored.snapshot.events[0],P.intervals(restored.snapshot)["2026-11-18"][0]]){assert.equal(e.allDay,true);assert.equal('description' in e,false);assert.equal('organizer' in e,false);}
+ assert.throws(()=>P.validateSnapshot(snapshot([{...raw.events[0],title:{html:"invalid title"}}])));
 });
-
+test("free invites do not block proposals or count as meetings",()=>{
+ const raw=snapshot([{...event('free','2026-11-18T05:00:00Z','2026-11-19T05:00:00Z','busy','free'),allDay:true}]);
+ const plan=P.createPlan(raw,NOW);assert.equal(P.intervals(plan.snapshot)['2026-11-18'],undefined);assert.equal(P.intervals(plan.snapshot,{includeFree:true})['2026-11-18'][0].allDay,true);
+ assert.equal(P.meetingLoad(plan.snapshot,'2026-11-18').meetingMinutes,0);P.addBlock(plan,'2026-11-18',540,660,NOW);assert.equal(P.scheduled(plan,'2026-11-18'),120);
+});
