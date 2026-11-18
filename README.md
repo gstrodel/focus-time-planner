@@ -1,13 +1,24 @@
-# Focus Planner v0.7
+# Focus Planner v0.8
 
-An offline, browser-based six-week focus planner using an Outlook calendar **extract**. No Microsoft app registration or sign-in is needed for this release. Import your extract, review proposals, approve or reject them, and save the results. Approvals do not create Outlook appointments.
+An offline, browser-based six-week focus planner using an Outlook calendar **extract**. No Microsoft app registration or sign-in is needed for this release. Import your extract, review proposals, approve or reject them, and export an `.ics` file to import into Outlook. Approvals and file exports stay local until you manually import the file into Outlook.
 
 ## Test it
 
-1. Download the app files together (`index.html`, `planner.js`, `local-calendar.js`, `app.js`). Open `index.html` in Edge or Chrome, or serve the folder with `py -m http.server 8000` and open `http://localhost:8000/`.
+1. Download the app files together (`index.html`, `planner.js`, `local-calendar.js`, `ical.js`, `app.js`). Open `index.html` in Edge or Chrome, or serve the folder with `py -m http.server 8000` and open `http://localhost:8000/`.
 2. Click **Connect calendar folder** and choose `C:\Users\UBC3554\OneDrive - Takeda\SuperlistSync`. The app reads `calendar_events.json` immediately and checks every minute while open. You can also use **Import** for a one-time calendar extract or saved plan. Proposals are generated automatically.
 3. Select a day and approve or reject blocks. **Approve all proposals** approves future blocks locally. Use **Add more focus time** to select an available window, start time and duration, including longer than two hours. Use **Extend 30 min** to lengthen a future local block; the revised block returns to proposed status for approval.
 4. Every change saves automatically to this browser. **Save plan** explicitly saves it again. **Download plan** exports the extract, planning decisions together as JSON. Import that file to resume in another browser or device.
+5. When upcoming proposals are approved or rejected and upcoming conflicts dismissed, click **Export to Outlook (.ics)**. Choose a save location, then import the file into your main Outlook work calendar as described below.
+
+## Export focus reservations to Outlook
+
+**Export to Outlook (.ics)** becomes available when at least one new approved future block exists and no upcoming proposals or conflicts remain. Reject unwanted proposals and dismiss old conflicts; days without available focus time do not prevent exporting. Eligibility updates each minute, on window focus, and on click. Existing calendar focus, rejected/conflicted blocks, and blocks that have already started are excluded.
+
+In Edge or Chrome with File System Access enabled, every export opens a **Save As** dialog so you can choose the filename and folder. Canceling leaves the plan unchanged. File writing errors are reported and do not mark the plan as booked. When the browser lacks a save picker, the app downloads the file and explains that the browser controls its location; enable **Ask where to save each file** in browser download settings to get a location prompt. Enterprise browser policy can block file pickers even in a supported browser.
+
+In **Outlook on the web**, open **Calendar → Add calendar → Upload from file**, browse to the `.ics`, choose your **main work calendar**, and import. Import into the calendar colleagues use for your availability. See [Microsoft's import instructions](https://support.microsoft.com/en-us/outlook/add-a-calendar-in-outlook-on-the-web). Appointments are titled **Focus Time**, private, and Busy; there are no attendees or meeting invitations. UTC start/end timestamps preserve the snapshot timezone's local times across daylight-saving changes and computers in other timezones.
+
+This is a one-time import, not calendar synchronization. Exporting never writes to Microsoft 365. Reimporting a file may create duplicate appointments, even though event UIDs are stable within a plan. The app cannot verify an Outlook import succeeded. Later edits, extensions, rejections, rebuilds or removals in the app do not update or cancel previously imported appointments; change those in Outlook before importing a revised block. Refresh your Power Automate export after importing so reservations appear as existing calendar focus and are excluded from future exports. Demo exports contain synthetic reservations; import your real calendar before booking.
 
 A privately supplied, self-contained HTML test copy can include an extract already loaded. Open that file in your browser; all code is bundled and no network requests are needed. Download your plan as a backup, since browser storage may be cleared or may not be available for local files. Keep the same local filename/path when reopening. A saved plan already in the browser takes precedence over bundled data.
 
@@ -39,7 +50,7 @@ The upstream flow must export the complete 42-day **calendar view**, expanding r
 
 ### Single-file copy
 
-Run `python scripts/build_standalone.py` to produce `dist/Focus_Planner_v0.7.html`. This bundles the same local code and requires no web server, packages or network requests. Open the HTML in Edge or Chrome, then connect the folder. No personal calendar data is bundled.
+Run `python scripts/build_standalone.py` to produce `dist/Focus_Planner_v0.8.html`. This bundles the same local code and requires no web server, packages or network requests. Open the HTML in Edge or Chrome, then connect the folder. No personal calendar data is bundled.
 
 ## Planning preferences
 
@@ -104,7 +115,7 @@ The planner uses the snapshot's timezone rather than the computer's timezone, in
 
 - The extract and plan stay in memory and localStorage under `focus-planner-v0.4`. They persist across midnight and reloads, with the snapshot's fixed date window. Imported files are not uploaded by this app.
 - Results reflect the most recently read export. Folder connections check every minute and when the page regains focus; background tabs may be throttled. Changes appear after Power Automate runs and OneDrive syncs. The capture timestamp is always visible. Conflict recovery uses the latest export, with no direct Outlook connection.
-- Recheck current availability before making actual calendar reservations in a later workflow. No Outlook writes, notifications, closed-page background jobs or cloud plan storage are implemented.
+- Recheck current availability before importing reservations. Outlook booking requires a manual `.ics` import; direct Outlook writes, notifications, closed-page background jobs and cloud plan storage are not implemented.
 - Browser-local data is specific to that browser/origin and may be cleared. Export JSON for a portable backup. If localStorage fails, the app reports it and keeps download available.
 - Legacy v0.1–v0.3 storage is left untouched and not migrated. The scheduler is deterministic, not machine learning.
 
@@ -127,4 +138,5 @@ It covers import, approvals, rejection, reload, download/restore, malformed impo
 
 
 
-Latest validation: 31 Node checks pass, including the connected-folder UI harness. The optional Playwright browser run was attempted here but Chromium could not start because this environment blocks its local sockets. Native folder selection and OneDrive synchronization must be verified on the target Windows machine.
+Validation: 41 Node checks pass, covering planning, local-file refresh, export approval gating, private/Busy appointments, timezone/DST conversion, stable UIDs, iCalendar escaping/folding, save success, cancellation, write failures and the download fallback. The optional Playwright suite was extended for export but could not launch Chromium here because local browser sockets are blocked. Native Windows file dialogs and Outlook import remain to be checked on the target machine.
+

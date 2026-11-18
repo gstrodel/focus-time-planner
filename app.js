@@ -1,7 +1,7 @@
 "use strict";
 (() => {
-  const P=window.FocusPlanner, KEY="focus-planner-v0.4", $=id=>document.getElementById(id);
-  let plan=null,selected=null,calendarConnection=null;
+  const P=window.FocusPlanner, I=window.FocusICalendar, KEY="focus-planner-v0.4", $=id=>document.getElementById(id);
+  let plan=null,selected=null,calendarConnection=null,exportingCalendar=false;
   const time=m=>`${Math.floor(m/60)%12||12}:${String(m%60).padStart(2,"0")} ${m%1440<720?"AM":"PM"}`;
   const label=date=>new Date(date+"T12:00:00Z").toLocaleDateString("en-US",{timeZone:"UTC",weekday:"short",month:"short",day:"numeric"});
   const hours=n=>(n/60).toFixed(n%60?1:0)+"h";
@@ -25,6 +25,7 @@
   }
   function render() {
     const loaded=!!plan;
+    renderCalendarExport();
     for(const id of ["generate","save","export","approveAll","protectCommute","reset"])$(id).disabled=!loaded;
     $("weeks").replaceChildren();$("detailBody").replaceChildren();
     if(!loaded){$("modeBadge").textContent="Calendar extract · Offline prototype";$("sourceStatus").textContent="Import a six-week calendar extract or a saved plan. No sign-in needed.";$("weeks").textContent="Your six-week plan will appear here after import.";return;}
@@ -87,6 +88,35 @@
     renderBookingForm(details);
     renderDayCalendar(details);
   }
+  function renderCalendarExport(){
+    const state=I.readiness(plan);
+    $("exportIcs").disabled=exportingCalendar||!state.ready;
+    $("exportIcs").textContent=exportingCalendar?"Saving .ics…":"Export to Outlook (.ics)";
+    $("icsStatus").textContent=state.message+(typeof window.showSaveFilePicker==="function"?
+      " Choose where to save when prompted.":" This browser uses downloads. To choose a location, enable ‘Ask where to save each file’ in browser settings or open in Edge or Chrome.");
+  }
+  $("exportIcs").addEventListener("click",async()=>{
+    if(exportingCalendar)return;
+    let writable=null;
+    try{
+      // Capture and revalidate the approved plan at the click, before any asynchronous work.
+      const file=I.create(plan),blob=new Blob([file.text],{type:"text/calendar;charset=utf-8"});
+      exportingCalendar=true;renderCalendarExport();
+      if(typeof window.showSaveFilePicker==="function"){
+        const handle=await window.showSaveFilePicker({id:"focus-time-ics",suggestedName:file.filename,
+          types:[{description:"iCalendar file (.ics)",accept:{"text/calendar":[".ics"]}}],excludeAcceptAllOption:true});
+        writable=await handle.createWritable();await writable.write(blob);await writable.close();writable=null;
+        say(`Saved ${file.count} focus blocks. In Outlook, use Calendar → Add calendar → Upload from file and choose your main work calendar. Saving did not book them. Reimporting may create duplicates.`);
+      }else{
+        const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=file.filename;
+        try{a.click();}finally{setTimeout(()=>URL.revokeObjectURL(url),1000);}
+        say(`Download started for ${file.count} focus blocks. Your browser controls the save location. Import the .ics into your main Outlook work calendar to reserve them. Reimporting may create duplicates.`);
+      }
+    }catch(error){
+      if(writable){try{await writable.abort();}catch(_){}}
+      say(error.name==="AbortError"?"Calendar export canceled. No Outlook reservations were made.":"Calendar export failed: "+error.message);
+    }finally{exportingCalendar=false;renderCalendarExport();}
+  });
   function renderDayCalendar(parent) {
     const heading=document.createElement("h4");heading.textContent="Day calendar";parent.append(heading);
     const note=document.createElement("p");note.className="hint";
@@ -195,6 +225,9 @@
     try{open(JSON.parse($("bootstrap").textContent),true);}catch(e){say("Could not load the bundled extract: "+e.message);}
   }
   render();
+  // Keep time-based eligibility current without rebuilding an in-progress booking form.
+  window.setInterval(renderCalendarExport,60000);
+  window.addEventListener("focus",renderCalendarExport);
   if(window.FocusLocalCalendar){
     const supported=typeof window.showDirectoryPicker==="function";
     const status=message=>{
@@ -222,5 +255,6 @@
     }
   }
 })();
+
 
 

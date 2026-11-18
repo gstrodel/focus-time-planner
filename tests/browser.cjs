@@ -10,13 +10,27 @@ const P=require('../planner.js');
  const raw=P.demo(),first=P.workdays(raw)[0];
  const upload=async data=>page.locator('#import').setInputFiles({name:'calendar.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(data))});
  await upload(raw);await page.waitForFunction(()=>document.querySelectorAll('.day').length===30);
+ assert.equal(await page.locator('#exportIcs').isEnabled(),false);
  let state=await page.evaluate(()=>JSON.parse(localStorage.getItem('focus-planner-v0.4')));assert.equal(state.snapshot.source,'demo');
  assert.ok(state.sessions.length>0);await page.locator('#approveAll').click();state=await page.evaluate(()=>JSON.parse(localStorage.getItem('focus-planner-v0.4')));assert.ok(state.sessions.some(s=>s.status==='approved'));
+ assert.equal(await page.locator('#exportIcs').isEnabled(),true);
+ // Test the save-picker contract; native OS dialogs still need a local Windows check.
+ await page.evaluate(()=>{window.showSaveFilePicker=async options=>{window.savedCalendarOptions=options;return {createWritable:async()=>({write:async blob=>{window.savedCalendarText=await blob.text();},close:async()=>{window.calendarClosed=true;}})};};});
+ await page.locator('#exportIcs').click();await page.waitForFunction(()=>window.calendarClosed);
+ const calendar=await page.evaluate(()=>({text:window.savedCalendarText,options:window.savedCalendarOptions}));
+ assert.equal((calendar.text.match(/BEGIN:VEVENT/g)||[]).length,state.sessions.filter(s=>s.status==='approved').length);
+ assert.match(calendar.text,/SUMMARY:Focus Time/);assert.match(calendar.text,/TRANSP:OPAQUE/);assert.ok(calendar.options.suggestedName.endsWith('.ics'));
+ await page.evaluate(()=>{window.showSaveFilePicker=async()=>{throw new DOMException('Canceled','AbortError');};});
+ await page.locator('#exportIcs').click();await page.waitForFunction(()=>document.querySelector('#notice').textContent.includes('canceled'));
+ assert.equal(await page.locator('#exportIcs').isEnabled(),true);
+ await page.evaluate(()=>{window.showSaveFilePicker=undefined;});
+ const icsPromise=page.waitForEvent('download');await page.locator('#exportIcs').click();const ics=await icsPromise;assert.ok(ics.suggestedFilename().endsWith('.ics'));
  await page.reload();assert.ok(parseFloat(await page.locator('#reserved').innerText())>0);
  const s=state.sessions.find(s=>s.status==='approved'&&s.date>first);await page.locator(`[data-date="${s.date}"]`).click();
  assert.equal(await page.getByRole('button',{name:'Completed',exact:true}).count(),0);assert.equal(await page.getByRole('button',{name:'Missed',exact:true}).count(),0);
  const row=page.locator(`[data-session-id="${s.id}"]`);await row.getByRole('button',{name:'Extend 30 min',exact:true}).click();
  state=await page.evaluate(()=>JSON.parse(localStorage.getItem('focus-planner-v0.4')));assert.equal(state.sessions.find(x=>x.id===s.id).end,s.end+30);assert.equal(state.sessions.find(x=>x.id===s.id).status,'proposed');
+ assert.equal(await page.locator('#exportIcs').isEnabled(),false);
  await row.getByRole('button',{name:'Approve',exact:true}).click();await row.getByRole('button',{name:'Remove from plan',exact:true}).click();
  const before=await page.evaluate(()=>localStorage.getItem('focus-planner-v0.4'));await upload({invalid:true});assert.match(await page.locator('#notice').innerText(),/Import failed/);assert.equal(await page.evaluate(()=>localStorage.getItem('focus-planner-v0.4')),before);
  const downloadPromise=page.waitForEvent('download');await page.locator('#export').click();const download=await downloadPromise;const tmp=await fs.mkdtemp(path.join(os.tmpdir(),'focus-test-'));const dest=path.join(tmp,'plan.json');await download.saveAs(dest);const backup=JSON.parse(await fs.readFile(dest,'utf8'));P.validatePlan(backup);assert.ok(backup.sessions.some(s=>s.status==='rejected'));
@@ -28,4 +42,5 @@ const P=require('../planner.js');
  await page.evaluate(()=>{Storage.prototype.setItem=function(){throw Error('Quota exceeded');};});await page.locator('#save').click();assert.match(await page.locator('#notice').innerText(),/could not save/);assert.equal(await page.locator('#export').isEnabled(),true);
  assert.deepEqual(errors,[]);assert.deepEqual(network,[]);await context.close();await browser.close();await fs.rm(tmp,{recursive:true,force:true});console.log('PASS: offline browser import, decisions, extension approval, removal, reload, backup/restore, invalid input, rejected blocks, mobile layout, storage failure; no external requests or page errors.');
 })().catch(e=>{console.error(e);process.exit(1);});
+
 

@@ -57,10 +57,11 @@
   </style>
 </head>
 <body>
-<header class="top"><div><h1>Focus Planner <small style="font-size:12px;font-weight:500;opacity:.7">v0.7</small></h1><p>Protect the time you need to do meaningful work.</p></div><span class="badge" id="modeBadge">Calendar extract · Offline prototype</span></header>
+<header class="top"><div><h1>Focus Planner <small style="font-size:12px;font-weight:500;opacity:.7">v0.8</small></h1><p>Protect the time you need to do meaningful work.</p></div><span class="badge" id="modeBadge">Calendar extract · Offline prototype</span></header>
 <main>
   <section class="card lead"><div><h2>Your six-week focus plan</h2><p>Plan at least one continuous two-hour focus block each workday, preferably in the morning. Add more whenever your day allows.</p></div>
-  <div class="actions"><button class="btn primary" id="generate">Generate plan</button><button class="btn" id="approveAll">Approve all proposals</button><button class="btn" id="save">Save plan</button><button class="btn" id="export">Download plan</button></div></section>
+  <div class="actions"><button class="btn primary" id="generate">Generate plan</button><button class="btn" id="approveAll">Approve all proposals</button><button class="btn" id="save">Save plan</button><button class="btn" id="export">Download plan</button><button class="btn primary" id="exportIcs" aria-describedby="icsStatus" disabled>Export to Outlook (.ics)</button></div></section>
+  <section class="card" style="margin-bottom:18px" aria-label="Outlook export"><p class="hint" id="icsStatus" role="status"></p><p class="hint">After saving: in Outlook on the web, choose <b>Calendar → Add calendar → Upload from file</b>, select the .ics, choose your <b>main work calendar</b>, then import. Only new approved future blocks are exported; focus already on Outlook is excluded. This is a one-time import. Reimporting may create duplicates; later edits or removals in this app do not update imported appointments.</p></section>
   <section class="metrics" aria-label="Plan metrics">
     <div class="card metric"><span>Minimum focus hours</span><strong id="target">0h</strong></div>
     <div class="card metric"><span>Approved locally</span><strong id="reserved">0h</strong></div>
@@ -96,12 +97,14 @@
     <section class="card"><div class="panelhead"><h3>Calendar coverage</h3><div class="legend"><span><i class="dot proposed"></i>Proposed</span><span><i class="dot approved"></i>Approved</span><span><i class="dot existing"></i>On calendar</span><span><i class="dot shortfall"></i>Shortfall</span></div></div>
       <p class="hint" id="coverageSummary"></p><div class="weeks" id="weeks"></div><section class="detail"><h3 id="detailTitle">Select a day</h3><div id="detailBody" class="hint">Generate a plan to see suggested sessions.</div></section>
     </section>
-  </div><p class="footer">Prototype v0.7 · Local calendar file · Local browser storage · No Microsoft 365 writes</p>
+  </div><p class="footer">Prototype v0.8 · Local calendar file · Local browser storage · Manual Outlook .ics import</p>
 </main>
 <script src="planner.js" defer></script>
 <script src="local-calendar.js" defer></script>
+<script src="ical.js" defer></script>
 <script src="app.js" defer></script>
 </body>
 </html>
+
 
 
