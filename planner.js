@@ -30,7 +30,14 @@
     const events = input.events.map(e=>{
       if (!e || typeof e.id!=="string" || !e.id || ids.has(e.id) || !isISO(e.start) || !isISO(e.end) || Date.parse(e.end)<=Date.parse(e.start) || !["busy","tentative","oof","unknown"].includes(e.status) || !["busy","existing-focus"].includes(e.kind)) throw Error("An event is invalid or duplicated. Import stopped; your saved plan is unchanged.");
       ids.add(e.id);
-      return {id:e.id,start:e.start,end:e.end,status:e.status,kind:e.kind,allDay:!!e.allDay};
+      const text=(value,limit)=>{
+        if(value===undefined || value===null)return "";
+        if(typeof value!=="string" || value.length>limit)throw Error("Invalid meeting description or organizer metadata.");
+        return value;
+      };
+      return {id:e.id,start:e.start,end:e.end,status:e.status,kind:e.kind,allDay:!!e.allDay,
+        title:text(e.title,1000),description:text(e.description,1000000),
+        organizer:{name:text(e.organizer?.name,500),email:text(e.organizer?.email,500)}};
     });
     return {schema:input.schema,version:1,source:input.source==="demo"?"demo":"outlook-extract",timeZone:input.timeZone,capturedAt:input.capturedAt,windowStart:input.windowStart,windowEnd:input.windowEnd,complete:true,events};
   }
@@ -44,7 +51,7 @@
       for(let date=a.date<snapshot.windowStart?snapshot.windowStart:a.date;date<=b.date && date<snapshot.windowEnd;date=addDays(date,1)) {
         const start=date===a.date?a.minute:0;
         const end=date===b.date?b.minute+((b.seconds || new Date(event.end).getUTCMilliseconds())?1:0):1440;
-        if(end>start)(byDate[date] ||= []).push({id:event.id,start,end,kind:event.kind,status:event.status});
+        if(end>start)(byDate[date] ||= []).push({id:event.id,start,end,kind:event.kind,status:event.status,title:event.title,description:event.description,organizer:event.organizer});
       }
     }
     return byDate;

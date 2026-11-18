@@ -1,6 +1,6 @@
 "use strict";
 (() => {
-  const P=window.FocusPlanner, KEY="focus-planner-v0.3", $=id=>document.getElementById(id);
+  const P=window.FocusPlanner, KEY="focus-planner-v0.4", $=id=>document.getElementById(id);
   let plan=null,selected=null;
   const time=m=>`${Math.floor(m/60)%12||12}:${String(m%60).padStart(2,"0")} ${m%1440<720?"AM":"PM"}`;
   const label=date=>new Date(date+"T12:00:00Z").toLocaleDateString("en-US",{timeZone:"UTC",weekday:"short",month:"short",day:"numeric"});
@@ -69,7 +69,17 @@
     }
     const heading=document.createElement("h4");heading.textContent="Calendar availability";details.append(heading);
     for(const event of (busy[selected]||[]).sort((a,b)=>a.start-b.start)) {
-      const row=document.createElement("p");row.className="hint";row.textContent=`${event.start===0&&event.end===1440?"All day":time(event.start)+" – "+time(event.end)} · ${event.kind==="existing-focus"?"Existing focus":event.status==="oof"?"Out of office":event.status==="tentative"?"Tentative (held as busy)":"Busy"}`;details.append(row);
+      const row=document.createElement("details");row.className="meeting";
+      const summary=document.createElement("summary");
+      const eventTime=event.start===0&&event.end===1440?"All day":time(event.start)+" – "+time(event.end);
+      const status=event.kind==="existing-focus"?"Existing focus":event.status==="oof"?"Out of office":event.status==="tentative"?"Tentative":"Busy";
+      summary.textContent=`${eventTime} · ${event.title||status}`;row.append(summary);
+      const organizer=document.createElement("p");organizer.className="hint";
+      const person=event.organizer||{};
+      organizer.textContent="Organizer: "+(person.name?person.name+(person.email?" <"+person.email+">":""):person.email||"Not included in this extract");row.append(organizer);
+      const description=document.createElement("p");description.className="hint meeting-description";
+      description.textContent=event.description||"No description included in this extract.";row.append(description);
+      const availability=document.createElement("p");availability.className="hint";availability.textContent="Availability: "+status;row.append(availability);details.append(row);
     }
     if(!(busy[selected]||[]).length){const p=document.createElement("p");p.className="hint";p.textContent="No blocking calendar events in this extract for this day.";details.append(p);}
     const reported=plan.sessions.filter(s=>["completed","missed"].includes(s.status));

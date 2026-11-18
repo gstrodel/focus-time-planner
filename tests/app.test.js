@@ -16,7 +16,7 @@ function boot(storage=new Map(),bootstrap=null){
  const document={getElementById:id=>nodes[id]||null,createElement:tag=>new Element(tag)};
  const context={window:{FocusPlanner:P,confirm:()=>true},document,localStorage,Blob,URL:{createObjectURL:()=>"blob:test",revokeObjectURL(){}},setTimeout:fn=>fn(),Date,console};
  vm.runInNewContext(fs.readFileSync(require.resolve('../app.js'),'utf8'),context);
- return {nodes,storage,localStorage,state:()=>JSON.parse(storage.get('focus-planner-v0.3')),import:async raw=>{nodes.import.files=[{size:100,text:async()=>JSON.stringify(raw)}];await nodes.import.listeners.change({target:nodes.import});}};
+ return {nodes,storage,localStorage,state:()=>JSON.parse(storage.get('focus-planner-v0.4')),import:async raw=>{nodes.import.files=[{size:100,text:async()=>JSON.stringify(raw)}];await nodes.import.listeners.change({target:nodes.import});}};
 }
 test('app imports, generates, approves, saves and restores actual user decisions',async()=>{
  const app=boot();assert.equal(app.nodes.generate.disabled,true);await app.import(P.demo());assert.equal(app.nodes.generate.disabled,false);assert.equal(app.nodes.weeks.children.flatMap(x=>x.children).length,30);
@@ -33,4 +33,9 @@ test('bundled saved plan initializes offline, then existing browser decisions ta
 });
 test('saved outcome and rejection survive plan download/reimport semantics',async()=>{
  const plan=P.createPlan(P.demo());P.generate(plan);plan.sessions[0].status='completed';plan.sessions[1].status='rejected';plan.savedAt=new Date().toISOString();const app=boot();await app.import(plan);assert.equal(app.state().sessions[0].status,'completed');assert.equal(app.state().sessions[1].status,'rejected');assert.match(app.nodes.insights.textContent,/1 of 1/);
+});
+test('calendar details show organizer and render description as literal text',async()=>{
+ const raw=P.demo();raw.events[0].title='Planning review';raw.events[0].description='<img src=x onerror=alert(1)> Agenda';raw.events[0].organizer={name:'Organizer Name',email:'person@example.test'};
+ const app=boot();await app.import(raw);
+ const meeting=app.nodes.detailBody.children.find(e=>e.tag==='details');assert.ok(meeting);assert.match(meeting.children[0].textContent,/Planning review/);assert.match(meeting.children[1].textContent,/Organizer Name <person@example.test>/);assert.equal(meeting.children[2].textContent,raw.events[0].description);
 });

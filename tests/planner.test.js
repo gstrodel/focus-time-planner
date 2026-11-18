@@ -41,3 +41,9 @@ test("saved decisions, feedback and snapshot survive serialization; invalid impo
  const bad=JSON.parse(JSON.stringify(plan));bad.sessions[1].start=bad.sessions[0].start;bad.sessions[1].date=bad.sessions[0].date;assert.throws(()=>P.validatePlan(bad));
  const collision=P.createPlan(snapshot([event("m","2026-11-18T14:00:00Z","2026-11-18T16:00:00Z")]),NOW);collision.sessions.push({id:1,date:"2026-11-18",start:540,end:600,status:"approved"});collision.nextId=2;assert.throws(()=>P.validatePlan(collision));
 });
+test("meeting titles, literal descriptions and organizers survive import and saved-plan restore",()=>{
+ const raw=snapshot([{...event("m","2026-11-18T14:00:00Z","2026-11-18T15:00:00Z"),title:"Planning review",description:"Agenda\n<script>alert('literal text')</script>",organizer:{name:"Meeting Organizer",email:"organizer@example.test"}}]);
+ const plan=P.createPlan(raw,NOW);P.generate(plan,NOW);const restored=P.validatePlan(JSON.parse(JSON.stringify(plan)));
+ assert.deepEqual(restored.snapshot.events[0],plan.snapshot.events[0]);assert.equal(P.intervals(restored.snapshot)["2026-11-18"][0].description,raw.events[0].description);
+ assert.throws(()=>P.validateSnapshot(snapshot([{...raw.events[0],description:{html:"not plain text"}}])));
+});
