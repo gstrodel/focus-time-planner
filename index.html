@@ -42,14 +42,16 @@
   </style>
 </head>
 <body>
-<header class="top"><div><h1>Focus Planner <small style="font-size:12px;font-weight:500;opacity:.7">v0.1</small></h1><p>Protect the time you need to do meaningful work.</p></div><span class="badge" id="modeBadge">Demo mode · No Outlook connection</span></header>
+<header class="top"><div><h1>Focus Planner <small style="font-size:12px;font-weight:500;opacity:.7">v0.2</small></h1><p>Protect the time you need to do meaningful work.</p></div><span class="badge" id="modeBadge">Demo mode · No Outlook connection</span></header>
 <main>
-  <section class="card lead"><div><h2>Your six-week focus plan</h2><p>Reserve two hours every weekday, favoring mornings.</p></div>
+  <section class="card lead"><div><h2>Your six-week focus plan</h2><p>Keep meetings at or below 50% of each workday and secure one continuous 2-hour focus block, preferably in the morning.</p></div>
   <div class="actions"><button class="btn primary" id="generate">Generate plan</button><button class="btn" id="approveAll">Approve all proposals</button><button class="btn" id="export">Export JSON</button></div></section>
   <section class="metrics" aria-label="Plan metrics">
     <div class="card metric"><span>Target hours</span><strong id="target">0h</strong></div>
     <div class="card metric"><span>Approved hours</span><strong id="reserved">0h</strong></div>
     <div class="card metric"><span>Awaiting approval</span><strong id="pending">0h</strong></div>
+    <div class="card metric"><span>Days within meeting limit</span><strong id="meetingGoal">0</strong></div>
+    <div class="card metric"><span>Days with 2h continuous focus planned</span><strong id="focusDays">0</strong></div>
     <div class="card metric"><span>Completed sessions</span><strong id="completed">0</strong></div>
   </section>
   <div class="grid">
@@ -61,8 +63,9 @@
 <p class="hint" id="outlookStatus" role="status">Not connected. Serve this app from localhost; see README.</p>
 </section><section class="card"><h3>Planning preferences</h3>
       <div class="setting"><span>Rolling horizon</span><b>6 weeks</b></div>
-      <div class="setting"><span>Daily focus target</span><b>2 hours</b></div>
-      <div class="setting"><span>Minimum block</span><b>60 minutes</b></div>
+      <div class="setting"><span>Daily focus target</span><b>2 hours, continuous</b></div>
+      <div class="setting"><span>Meeting limit</span><b>50% / 4h per day</b></div>
+      <div class="setting"><span>Working hours</span><b>9:30 AM–5:30 PM</b></div>
       <div class="setting"><span>Preferred time</span><b>Morning</b></div>
       <div class="setting"><span>Conflict recovery</span><b>On</b></div>
       <div class="setting"><span>Approval before changes</span><b>Required</b></div>
@@ -75,7 +78,7 @@
     <section class="card"><div class="panelhead"><h3>Calendar coverage</h3><div class="legend"><span><i class="dot proposed"></i>Proposed</span><span><i class="dot approved"></i>Approved</span><span><i class="dot conflicted"></i>Conflict</span><span><i class="dot shortfall"></i>Shortfall</span></div></div>
       <div class="weeks" id="weeks"></div><section class="detail"><h3 id="detailTitle">Select a day</h3><div id="detailBody" class="hint">Generate a plan to see suggested sessions.</div></section>
     </section>
-  </div><p class="footer">Prototype v0.1 · Simulated availability · Local browser storage · No Microsoft 365 writes</p>
+  </div><p class="footer">Prototype v0.2 · Simulated availability · Local browser storage · No Microsoft 365 writes</p>
 </main>
 <script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js" defer></script>
 <script src="outlook.js" defer></script>

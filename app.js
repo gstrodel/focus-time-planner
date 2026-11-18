@@ -1,7 +1,7 @@
 "use strict";
 (() => {
   const KEY = "focus-planner-v0.1";
-  const CONFIG = Object.freeze({ horizonDays: 42, dailyTargetMinutes: 120, minBlockMinutes: 60, startMinute: 9*60, endMinute: 17*60, preferMorning: true, conflictRecovery: true, approvalRequired: true });
+  const CONFIG = Object.freeze({ horizonDays: 42, dailyTargetMinutes: 120, minBlockMinutes: 120, maxMeetingRatio: 0.5, startMinute: 9*60+30, endMinute: 17*60+30, preferMorning: true, conflictRecovery: true, approvalRequired: true });
   const $ = id => document.getElementById(id);
   const pad = n => String(n).padStart(2, "0");
   const dayKey = d => [d.getFullYear(), pad(d.getMonth()+1), pad(d.getDate())].join("-");
@@ -37,7 +37,17 @@
   const sessionsOn=date=>state.sessions.filter(s=>s.date===date);
   const active=s=>["proposed","approved","completed"].includes(s.status);
   const scheduledMinutes=date=>sessionsOn(date).filter(active).reduce((sum,s)=>sum+s.end-s.start,0);
-  const busyOn=date=>[...demoMeetings(date),...state.extraBusy.filter(e=>e.date===date),...sessionsOn(date).filter(active)];
+  const meetingEvents=date=>[...demoMeetings(date),...state.extraBusy.filter(e=>e.date===date)];
+  const busyOn=date=>[...meetingEvents(date),...sessionsOn(date).filter(active)];
+  const unionMinutes=events=>{
+    const spans=events.map(e=>({start:Math.max(CONFIG.startMinute,e.start),end:Math.min(CONFIG.endMinute,e.end)})).filter(e=>e.start<e.end).sort((a,b)=>a.start-b.start);
+    let total=0,last=null;
+    for(const e of spans){if(last&&e.start<=last.end)last.end=Math.max(last.end,e.end);else{if(last)total+=last.end-last.start;last={...e};}}
+    return total+(last?last.end-last.start:0);
+  };
+  const meetingMinutes=date=>unionMinutes(meetingEvents(date));
+  const hasContinuousFocus=date=>sessionsOn(date).some(s=>active(s)&&s.end-s.start>=CONFIG.dailyTargetMinutes);
+  const meetingRatio=date=>meetingMinutes(date)/(CONFIG.endMinute-CONFIG.startMinute);
   function gaps(busy){
     const blocked=busy.map(e=>({start:Math.max(CONFIG.startMinute,e.start),end:Math.min(CONFIG.endMinute,e.end)})).filter(e=>e.start<e.end).sort((a,b)=>a.start-b.start);
     const merged=[];
@@ -48,27 +58,16 @@
     return free;
   }
   function proposeForDate(date){
-    let needed=CONFIG.dailyTargetMinutes-scheduledMinutes(date);
-    if(needed<CONFIG.minBlockMinutes)return 0;
-    let added=0;
-    while(needed>=CONFIG.minBlockMinutes){
-      const options=gaps(busyOn(date)).map(g=>({...g,length:g.end-g.start})).filter(g=>g.length>=CONFIG.minBlockMinutes);
-      if(!options.length)break;
-      options.sort((a,b)=>{
-        const aMorning=a.start<12*60?0:1,bMorning=b.start<12*60?0:1;
-        if(aMorning!==bMorning)return aMorning-bMorning;
-        // Prefer a continuous slot if one meets the entire outstanding target.
-        const aFull=a.length>=needed?0:1,bFull=b.length>=needed?0:1;
-        return aFull-bFull||a.start-b.start;
-      });
-      const best=options[0];
-      let length=Math.min(best.length,needed);
-      // If no single block can satisfy the remainder, split into at least 60-minute blocks.
-      if(length<CONFIG.minBlockMinutes)break;
-      const session={id:state.nextId++,date,start:best.start,end:best.start+length,status:"proposed",recovered:false};
-      state.sessions.push(session);added++;needed-=length;
-    }
-    return added;
+    if(hasContinuousFocus(date))return 0;
+    const options=gaps(busyOn(date)).filter(g=>g.end-g.start>=CONFIG.dailyTargetMinutes);
+    if(!options.length)return 0;
+    options.sort((a,b)=>{
+      const am=a.start<12*60?0:1,bm=b.start<12*60?0:1;
+      return am-bm||a.start-b.start;
+    });
+    const best=options[0];
+    state.sessions.push({id:state.nextId++,date,start:best.start,end:best.start+CONFIG.dailyTargetMinutes,status:"proposed",recovered:false});
+    return 1;
   }
   function generate(){
     if(liveMode&&!liveBusy){say("Sync Outlook calendar before generating proposals.");return;}
@@ -105,6 +104,10 @@
     $("modeBadge").textContent=liveMode?"Outlook · read-only":"Demo mode · No Outlook connection";
     $("simulate").disabled=liveMode;
     $("target").textContent=(workdays.length*2)+"h";
+    const overCap=workdays.filter(d=>meetingRatio(dayKey(d))>CONFIG.maxMeetingRatio).length;
+    const covered=workdays.filter(d=>hasContinuousFocus(dayKey(d))).length;
+    $("meetingGoal").textContent=(workdays.length-overCap)+"/"+workdays.length;
+    $("focusDays").textContent=covered+"/"+workdays.length;
     const sum=status=>state.sessions.filter(s=>s.status===status).reduce((n,s)=>n+s.end-s.start,0);
     $("reserved").textContent=(sum("approved")/60).toFixed(1)+"h";
     $("pending").textContent=(sum("proposed")/60).toFixed(1)+"h";
@@ -117,10 +120,11 @@
         const key=dayKey(d), ss=sessionsOn(key);
         const minutes=ss.filter(active).reduce((n,s)=>n+s.end-s.start,0);
         const btn=document.createElement("button");btn.type="button";
-        btn.className="day"+(key===selected?" selected":"")+(minutes<120&&ss.length?" unavailable":"");
+        const coveredDay=hasContinuousFocus(key),highMeetings=meetingRatio(key)>CONFIG.maxMeetingRatio;
+        btn.className="day"+(key===selected?" selected":"")+(!coveredDay||highMeetings?" unavailable":"");
         const date=document.createElement("div");date.className="date";date.textContent=d.toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"});
         const hours=document.createElement("div");hours.className="hours";hours.textContent=(minutes/60).toFixed(minutes%60?1:0)+"/2h";
-        const sub=document.createElement("div");sub.className="sub";sub.textContent=ss.some(s=>s.status==="conflicted")?"Conflict detected":minutes<120?"Needs focus time":"Focus target covered";
+        const sub=document.createElement("div");sub.className="sub";sub.textContent=ss.some(s=>s.status==="conflicted")?"Conflict detected":highMeetings?"Meetings exceed 50%":!coveredDay?"Needs 2h continuous":"Both goals covered";
         const chips=document.createElement("div");chips.className="chips";
         for(const s of ss.filter(s=>["proposed","approved","conflicted","completed"].includes(s.status))){
           const chip=document.createElement("span");chip.className="chip "+(s.status==="conflicted"?"conflict":s.status==="proposed"?"pending":"booked");chip.title=s.status;chips.append(chip);
@@ -132,6 +136,10 @@
     const day=dateFromKey(selected);
     $("detailTitle").textContent=day.toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"});
     const details=$("detailBody");details.replaceChildren();
+    const ratio=Math.round(meetingRatio(selected)*100);
+    const summary=document.createElement("p");summary.className="hint";
+    summary.textContent=`Meetings: ${(meetingMinutes(selected)/60).toFixed(1)}h / 8h (${ratio}%; target ≤50%). Continuous 2h focus: ${hasContinuousFocus(selected)?"planned":"not yet secured"}.`;
+    details.append(summary);
     const ss=sessionsOn(selected).sort((a,b)=>a.start-b.start);
     const meetings=[...demoMeetings(selected),...(liveMode?[]:state.extraBusy.filter(e=>e.date===selected))].sort((a,b)=>a.start-b.start);
     if(!ss.length){const p=document.createElement("p");p.className="hint";p.textContent="No focus sessions yet. Use Generate plan to find available blocks.";details.append(p);}
@@ -146,7 +154,7 @@
       if(s.status==="approved"){add("Completed","completed");add("Missed","missed");}
       row.append(controls);details.append(row);
     }
-    const p=document.createElement("p");p.className="hint";p.textContent="Simulated busy: "+(meetings.length?meetings.map(m=>`${displayTime(m.start)}–${displayTime(m.end)} ${m.subject}`).join("; "):"none");details.append(p);
+    const p=document.createElement("p");p.className="hint";p.textContent=(liveMode?"Outlook busy: ":"Simulated busy: ")+(meetings.length?meetings.map(m=>`${displayTime(m.start)}–${displayTime(m.end)} ${m.subject}`).join("; "):"none");details.append(p);
     const reported=state.sessions.filter(s=>["completed","missed"].includes(s.status));
     const complete=reported.filter(s=>s.status==="completed").length;
     const displaced=state.sessions.filter(s=>s.status==="conflicted").length;
