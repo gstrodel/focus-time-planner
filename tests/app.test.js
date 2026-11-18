@@ -9,14 +9,15 @@ class Element {
  setAttribute(key,value){this.attributes[key]=value;}
  click(){if(!this.disabled)return this.listeners.click?.({target:this});}
 }
-function boot(storage=new Map(),bootstrap=null,localCalendar=null){
+function boot(storage=new Map(),bootstrap=null,localCalendar=null,windowOptions={}){
  const nodes=Object.fromEntries([...fs.readFileSync(require.resolve('../index.html'),'utf8').matchAll(/id="([^"]+)"/g)].map(m=>[m[1],new Element()]));
  if(bootstrap){nodes.bootstrap=new Element('script');nodes.bootstrap.textContent=JSON.stringify(bootstrap);}
  const localStorage={getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v)};
  const document={getElementById:id=>nodes[id]||null,createElement:tag=>new Element(tag),addEventListener(){}};
- const context={window:{FocusPlanner:P,FocusLocalCalendar:localCalendar,showDirectoryPicker:localCalendar?()=>{}:undefined,setInterval(){},addEventListener(){},confirm:()=>true},document,localStorage,Blob,URL:{createObjectURL:()=>"blob:test",revokeObjectURL(){}},setTimeout:fn=>fn(),Date,console};
+ const downloads=[];
+ const context={window:{FocusPlanner:P,FocusICalendar:require('../ical.js'),FocusLocalCalendar:localCalendar,showDirectoryPicker:localCalendar?()=>{}:undefined,setInterval(){},addEventListener(){},confirm:()=>true,...windowOptions},document,localStorage,Blob,URL:{createObjectURL:blob=>{downloads.push(blob);return "blob:test";},revokeObjectURL(){}},setTimeout:fn=>fn(),Date,console};
  vm.runInNewContext(fs.readFileSync(require.resolve('../app.js'),'utf8'),context);
- return {nodes,storage,localStorage,state:()=>JSON.parse(storage.get('focus-planner-v0.4')),import:async raw=>{nodes.import.files=[{size:100,text:async()=>JSON.stringify(raw)}];await nodes.import.listeners.change({target:nodes.import});}};
+ return {nodes,storage,localStorage,downloads,state:()=>JSON.parse(storage.get('focus-planner-v0.4')),import:async raw=>{nodes.import.files=[{size:100,text:async()=>JSON.stringify(raw)}];await nodes.import.listeners.change({target:nodes.import});}};
 }
 test('app imports, generates, approves, saves and restores actual user decisions',async()=>{
  const app=boot();assert.equal(app.nodes.generate.disabled,true);await app.import(P.demo());assert.equal(app.nodes.generate.disabled,false);assert.equal(app.nodes.weeks.children.flatMap(x=>x.children).length,30);
@@ -35,6 +36,38 @@ test('legacy outcome statuses migrate to planning decisions without outcome cont
  const plan=P.createPlan(P.demo());P.generate(plan);plan.sessions[0].status='completed';plan.sessions[1].status='rejected';plan.savedAt=new Date().toISOString();const app=boot();await app.import(plan);assert.equal(app.state().sessions[0].status,'approved');assert.equal(app.state().sessions[1].status,'rejected');assert.equal(app.nodes.insights,undefined);
 });
 const descendants=node=>[node,...node.children.filter(e=>typeof e==='object').flatMap(descendants)];
+test('calendar export waits for decisions, prompts for location, and preserves local approvals',async()=>{
+ let options,written,closed=false;
+ const app=boot(new Map(),null,null,{showSaveFilePicker:async opts=>{options=opts;return {createWritable:async()=>({write:async blob=>{written=await blob.text();},close:async()=>{closed=true;}})};}});
+ assert.equal(app.nodes.exportIcs.disabled,true);await app.import(P.demo());assert.equal(app.nodes.exportIcs.disabled,true);
+ app.nodes.approveAll.click();assert.equal(app.nodes.exportIcs.disabled,false);const before=JSON.stringify(app.state());
+ await app.nodes.exportIcs.click();assert.equal(closed,true);assert.equal(options.id,'focus-time-ics');assert.ok(options.suggestedName.endsWith('.ics'));
+ assert.deepEqual(Array.from(options.types[0].accept['text/calendar']),['.ics']);assert.match(written,/BEGIN:VCALENDAR/);
+ assert.equal(JSON.stringify(app.state()),before);assert.match(app.nodes.notice.textContent,/Saved .*focus blocks/);assert.equal(app.downloads.length,0);
+ // Extending any approved block requires approval again before the next export.
+ const state=app.state(),extendable=state.sessions.find(s=>s.status==='approved'&&P.available(state,s.date,undefined,s.id).some(g=>g.start<=s.start&&g.end>=s.end+30));
+ assert.ok(extendable);descendants(app.nodes.weeks).find(e=>e.dataset.date===extendable.date).click();
+ const extend=descendants(app.nodes.detailBody).find(e=>e.textContent==='Extend 30 min'&&!e.disabled);
+ assert.ok(extend);extend.click();assert.equal(app.nodes.exportIcs.disabled,true);
+});
+test('canceling or failing calendar save reports the result and keeps export available',async()=>{
+ for(const failure of ['cancel','write','close']){
+   let aborted=false;
+   const app=boot(new Map(),null,null,{showSaveFilePicker:async()=>{
+     if(failure==='cancel')throw Object.assign(Error('canceled'),{name:'AbortError'});
+     return {createWritable:async()=>({write:async()=>{if(failure==='write')throw Error('Disk full');},close:async()=>{throw Error('Close failed');},abort:async()=>{aborted=true;}})};
+   }});
+   await app.import(P.demo());app.nodes.approveAll.click();const before=JSON.stringify(app.state());
+   await app.nodes.exportIcs.click();assert.equal(JSON.stringify(app.state()),before);assert.equal(app.nodes.exportIcs.disabled,false);
+   assert.match(app.nodes.notice.textContent,failure==='cancel'?/canceled/:/export failed/);assert.equal(aborted,failure!=='cancel');assert.equal(app.downloads.length,0);
+ }
+});
+test('browsers without a save picker download an ICS with an explicit location limitation',async()=>{
+ const app=boot();await app.import(P.demo());app.nodes.approveAll.click();
+ assert.match(app.nodes.icsStatus.textContent,/Ask where to save/);await app.nodes.exportIcs.click();
+ assert.equal(app.downloads.length,1);assert.equal(app.downloads[0].type,'text/calendar;charset=utf-8');assert.match(await app.downloads[0].text(),/SUMMARY:Focus Time/);
+ assert.match(app.nodes.notice.textContent,/browser controls the save location/);
+});
 test('day grid shows titles and discards descriptions and organizers on import and restore',async()=>{
  const raw=P.demo();raw.events[0].title='Planning review';raw.events[0].description='<img src=x onerror=alert(1)> Agenda';raw.events[0].organizer={name:'Organizer Name',email:'person@example.test'};
  const app=boot();await app.import(raw);
@@ -73,3 +106,4 @@ test('connected folder refresh updates app decisions and exposes conflicts witho
  const day=descendants(app.nodes.weeks).find(e=>e.dataset.date===block.date);day.click();const dismiss=descendants(app.nodes.detailBody).find(e=>e.textContent==='Dismiss conflict');assert.ok(dismiss);dismiss.click();assert.equal(app.state().sessions.find(s=>s.id===block.id).status,'rejected');
  await app.nodes.disconnectCalendar.click();assert.equal(app.nodes.refreshCalendar.disabled,true);assert.ok(app.state());
 });
+
