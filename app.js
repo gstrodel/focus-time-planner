@@ -33,7 +33,7 @@
   const dates=Array.from({length:CONFIG.horizonDays},(_,i)=>plusDays(dateFromKey(anchor),i));
   const workdays=weekdays(dates);
   const inHorizon = date => workdays.some(d=>dayKey(d)===date);
-  const store=()=>localStorage.setItem(KEY,JSON.stringify(state));
+  const store=()=>{ if(!liveMode)localStorage.setItem(KEY,JSON.stringify(state)); };
   const sessionsOn=date=>state.sessions.filter(s=>s.date===date);
   const active=s=>["proposed","approved","completed"].includes(s.status);
   const scheduledMinutes=date=>sessionsOn(date).filter(active).reduce((sum,s)=>sum+s.end-s.start,0);
@@ -163,7 +163,7 @@
       const result=await FocusOutlook.sync(start,end);
       const byDate=FocusOutlook.toBusyByDate(result.events,start,end);
       // Distinct plan for the live calendar: do not carry simulated approvals across.
-      liveMode=true;liveBusy=byDate;state=createState();selected=anchor;store();
+      liveMode=true;liveBusy=byDate;state=createState();selected=anchor;localStorage.removeItem(KEY);
       render();$("outlookStatus").textContent=`Connected: ${result.account}. Read ${result.count} Outlook events through ${dayKey(plusDays(end,-1))}. No calendar writes.`;
       say("Outlook synced. Generate plan to propose available slots.");
     }catch(e){$("outlookStatus").textContent="Connection failed: "+(e.message||e);}
