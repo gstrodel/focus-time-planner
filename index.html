@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#13263c">
-  <title>Focus Planner — v0.6</title>
+  <title>Focus Planner — v0.7</title>
   <style>
     :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:#14253b;background:#f3f6fa;font-synthesis:none}
     *{box-sizing:border-box}body{margin:0}button{font:inherit;cursor:pointer}button:disabled{cursor:not-allowed;opacity:.45}
@@ -57,7 +57,7 @@
   </style>
 </head>
 <body>
-<header class="top"><div><h1>Focus Planner <small style="font-size:12px;font-weight:500;opacity:.7">v0.6</small></h1><p>Protect the time you need to do meaningful work.</p></div><span class="badge" id="modeBadge">Calendar extract · Offline prototype</span></header>
+<header class="top"><div><h1>Focus Planner <small style="font-size:12px;font-weight:500;opacity:.7">v0.7</small></h1><p>Protect the time you need to do meaningful work.</p></div><span class="badge" id="modeBadge">Calendar extract · Offline prototype</span></header>
 <main>
   <section class="card lead"><div><h2>Your six-week focus plan</h2><p>Plan at least one continuous two-hour focus block each workday, preferably in the morning. Add more whenever your day allows.</p></div>
   <div class="actions"><button class="btn primary" id="generate">Generate plan</button><button class="btn" id="approveAll">Approve all proposals</button><button class="btn" id="save">Save plan</button><button class="btn" id="export">Download plan</button></div></section>
@@ -70,7 +70,11 @@
     <div class="card metric"><span>Days with 2h continuous focus planned</span><strong id="focusDays">0</strong></div>
   </section>
   <div class="grid">
-    <aside class="side"><section class="card"><h3>Your calendar extract</h3>
+    <aside class="side"><section class="card"><h3>Your calendar file</h3>
+<p class="hint">Keep your Power Automate export connected. Select the <b>SuperlistSync</b> folder once; the app checks <b>calendar_events.json</b> every minute while open.</p>
+<p class="hint" style="overflow-wrap:anywhere">C:\Users\UBC3554\OneDrive - Takeda\SuperlistSync\calendar_events.json</p>
+<div class="actions"><button class="btn primary" id="connectCalendar">Connect calendar folder</button><button class="btn" id="refreshCalendar" disabled>Refresh now</button><button class="btn" id="disconnectCalendar" disabled>Disconnect</button></div>
+<p class="hint" id="calendarFileStatus" role="status">Use Edge or Chrome and choose the folder when prompted. Keep the full 42-day export, including all pages, in this file. OneDrive must finish syncing before updates appear.</p>
 <p class="hint">Import your Outlook extract to find focus time and view your day on a calendar grid. Import a downloaded plan to restore your planning decisions.</p>
 <label for="import">Calendar extract or saved plan (.json)</label><input id="import" type="file" accept=".json,application/json">
 <p class="hint" id="sourceStatus" role="status"></p>
@@ -85,17 +89,19 @@
       <div class="setting"><span>Working hours</span><b>9:00–5:30</b></div><div class="setting"><span>Meetings preferred after</span><b>9:30 AM</b></div><label style="line-height:1.6"><input type="checkbox" id="protectCommute"> Keep 9:00–9:30 free for commuting</label>
       <div class="setting"><span>Approval before changes</span><b>Required</b></div>
       <p class="hint">Existing calendar focus counts toward the target. Tentative events and time off block scheduling. Approvals are saved locally; they do not book Outlook events.</p></section>
-      <section class="card"><h3>Plan status</h3><p class="hint" id="notice" role="status">Import an extract to get started.</p><p class="hint">Save in this browser to revisit the plan. Download a backup to keep it across browsers or devices. This extract will not refresh automatically.</p></section>
+      <section class="card"><h3>Plan status</h3><p class="hint" id="notice" role="status">Import an extract to get started.</p><p class="hint">Save in this browser to revisit the plan. Download a backup to keep it across browsers or devices. A connected calendar file refreshes while this page is open. Check its last update above before booking focus time.</p></section>
       <section class="card"><h3>Plan controls</h3><p class="hint">Select a day to add more focus time or extend a future block. Every added or extended block needs local approval.</p>
       <button class="btn danger" id="reset" style="margin-top:14px">Rebuild plan</button></section>
     </aside>
     <section class="card"><div class="panelhead"><h3>Calendar coverage</h3><div class="legend"><span><i class="dot proposed"></i>Proposed</span><span><i class="dot approved"></i>Approved</span><span><i class="dot existing"></i>On calendar</span><span><i class="dot shortfall"></i>Shortfall</span></div></div>
       <p class="hint" id="coverageSummary"></p><div class="weeks" id="weeks"></div><section class="detail"><h3 id="detailTitle">Select a day</h3><div id="detailBody" class="hint">Generate a plan to see suggested sessions.</div></section>
     </section>
-  </div><p class="footer">Prototype v0.6 · Calendar extract · Local browser storage · No Microsoft 365 writes</p>
+  </div><p class="footer">Prototype v0.7 · Local calendar file · Local browser storage · No Microsoft 365 writes</p>
 </main>
 <script src="planner.js" defer></script>
+<script src="local-calendar.js" defer></script>
 <script src="app.js" defer></script>
 </body>
 </html>
+
 
