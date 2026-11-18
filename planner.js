@@ -9,7 +9,7 @@
     startMinute:540, endMinute:1050, preferMorning:true, meetingStartMinute:570,
     protectCommute:false, approvalRequired:true, maxMeetingRatio:0.5});
   const ACTIVE = new Set(["proposed", "approved", "existing"]);
-  const STATUSES = new Set(["proposed", "approved", "existing", "rejected"]);
+  const STATUSES = new Set(["proposed", "approved", "existing", "rejected", "conflicted"]);
   const pad = n => String(n).padStart(2, "0");
   const addDays = (key, n) => new Date(Date.parse(key+"T12:00:00Z")+n*86400000).toISOString().slice(0,10);
   const isDate = key => typeof key === "string" && /^\d{4}-\d{2}-\d{2}$/.test(key) && !isNaN(Date.parse(key+"T12:00:00Z")) && addDays(key,0)===key;
@@ -160,4 +160,5 @@
   }
   return {CONFIG,ACTIVE,addDays,localParts,overlap,validateSnapshot,validatePlan,workdays,intervals,merge,gaps,createPlan,scheduled,meetingLoad,hasContinuousFocus,available,addBlock,extendBlock,generate,demo};
 });
+
 

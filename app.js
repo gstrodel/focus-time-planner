@@ -1,7 +1,7 @@
 "use strict";
 (() => {
   const P=window.FocusPlanner, KEY="focus-planner-v0.4", $=id=>document.getElementById(id);
-  let plan=null,selected=null;
+  let plan=null,selected=null,calendarConnection=null;
   const time=m=>`${Math.floor(m/60)%12||12}:${String(m%60).padStart(2,"0")} ${m%1440<720?"AM":"PM"}`;
   const label=date=>new Date(date+"T12:00:00Z").toLocaleDateString("en-US",{timeZone:"UTC",weekday:"short",month:"short",day:"numeric"});
   const hours=n=>(n/60).toFixed(n%60?1:0)+"h";
@@ -20,7 +20,7 @@
     const s=plan.sessions.find(s=>s.id===id);if(!s)return;
     if(s.status==="proposed" && ["approved","rejected"].includes(status)) {
       if(status==="approved"&&!approveable(s)){say("That block has already started. Generate new proposals for the remaining time.");return;}
-    } else if(!(s.status==="approved" && status==="rejected" && approveable(s)))return;
+    } else if(!(s.status==="conflicted"&&status==="rejected")&&!(s.status==="approved" && status==="rejected" && approveable(s)))return;
     s.status=status;persist();render();
   }
   function render() {
@@ -30,8 +30,8 @@
     if(!loaded){$("modeBadge").textContent="Calendar extract · Offline prototype";$("sourceStatus").textContent="Import a six-week calendar extract or a saved plan. No sign-in needed.";$("weeks").textContent="Your six-week plan will appear here after import.";return;}
     const snapshot=plan.snapshot,zoneLabel=snapshot.timeZone==="America/New_York"?"Eastern Time":snapshot.timeZone,today=P.localParts(new Date().toISOString(),snapshot.timeZone).date,days=P.workdays(snapshot).filter(d=>d>=today),busy=P.intervals(snapshot);
     if(!days.includes(selected))selected=days[0]||null;
-    $("modeBadge").textContent=snapshot.source==="demo"?"Demo · Synthetic availability":"Outlook extract · No live connection";
-    $("sourceStatus").textContent=`${label(snapshot.windowStart)} – ${label(P.addDays(snapshot.windowEnd,-1))}, ${snapshot.windowEnd.slice(0,4)}. Captured ${new Date(snapshot.capturedAt).toLocaleString("en-US",{timeZone:snapshot.timeZone})} (${snapshot.timeZone}). ${snapshot.events.length} calendar intervals. Availability is a snapshot; changes after capture are not reflected.`;
+    $("modeBadge").textContent=snapshot.source==="demo"?"Demo · Synthetic availability":calendarConnection?.handle?"Outlook · Synced local file":"Outlook extract · No live connection";
+    $("sourceStatus").textContent=`${label(snapshot.windowStart)} – ${label(P.addDays(snapshot.windowEnd,-1))}, ${snapshot.windowEnd.slice(0,4)}. Captured ${new Date(snapshot.capturedAt).toLocaleString("en-US",{timeZone:snapshot.timeZone})} (${snapshot.timeZone}). ${snapshot.events.length} calendar intervals. ${calendarConnection?.handle?"Updates follow Power Automate and OneDrive sync.":"Availability is a snapshot; changes after capture are not reflected."}`;
     $("protectCommute").checked=plan.config.protectCommute;
     $("target").textContent=hours(days.length*120);
     const sum=status=>plan.sessions.filter(s=>s.date>=today&&s.status===status).reduce((n,s)=>n+s.end-s.start,0);
@@ -43,7 +43,8 @@
     $("meetingGoal").textContent=workingDays.filter(d=>loads[d].ratio<=P.CONFIG.maxMeetingRatio).length+"/"+workingDays.length;
     $("focusDays").textContent=covered+"/"+days.length;
     const shortfall=days.reduce((n,d)=>n+Math.max(0,120-P.scheduled(plan,d)),0);
-    $("coverageSummary").textContent=`${covered} of ${days.length} upcoming weekdays have 2h continuous focus planned · ${hours(shortfall)} below the daily minimum in total · ${zoneLabel}`;
+    const conflicts=plan.sessions.filter(s=>s.status==="conflicted"&&s.date>=today).length;
+    $("coverageSummary").textContent=`${covered} of ${days.length} upcoming weekdays have 2h continuous focus planned · ${hours(shortfall)} below the daily minimum in total · ${zoneLabel}`+(conflicts?` · ${conflicts} previous blocks conflict with the updated calendar; select their days to review.`:"");
     let group=null;
     for(const date of days) {
       if(!group || new Date(date+"T12:00:00Z").getUTCDay()===1){group=document.createElement("div");group.className="week";$("weeks").append(group);}
@@ -54,14 +55,14 @@
       btn.setAttribute("aria-label",`${label(date)}: ${hours(minutes)} focus, ${hours(Math.max(0,120-minutes))} shortfall`);
       const name=document.createElement("div");name.className="date";name.textContent=label(date);
       const total=document.createElement("div");total.className="hours";total.textContent=hours(minutes)+" planned";
-      const sub=document.createElement("div");sub.className="sub";sub.textContent=(continuous?"2h minimum covered":minutes>=120?"Needs 2h continuous":hours(120-minutes)+" below minimum")+(highMeetings?" · Meetings exceed 50%":"");
+      const sub=document.createElement("div");sub.className="sub";sub.textContent=(continuous?"2h minimum covered":minutes>=120?"Needs 2h continuous":hours(120-minutes)+" below minimum")+(highMeetings?" · Meetings exceed 50%":"")+(sessions.some(s=>s.status==="conflicted")?" · Review conflict":"");
       const chips=document.createElement("div");chips.className="chips";
       for(const s of sessions.filter(s=>P.ACTIVE.has(s.status))){const chip=document.createElement("span");chip.className="chip "+(s.status==="proposed"?"pending":s.status==="existing"?"calendar":"booked");chip.title=s.status;chips.append(chip);}
       btn.append(name,total,sub,chips);btn.addEventListener("click",()=>{selected=date;render();});group.append(btn);
     }
     if(!selected){$("detailTitle").textContent="Calendar extract ended";$("detailBody").textContent="Import a new six-week extract to plan upcoming focus time.";return;}
     $("detailTitle").textContent=label(selected)+" · "+zoneLabel;
-    const details=$("detailBody"),sessions=plan.sessions.filter(s=>s.date===selected&&P.ACTIVE.has(s.status)).sort((a,b)=>a.start-b.start);
+    const details=$("detailBody"),sessions=plan.sessions.filter(s=>s.date===selected&&(P.ACTIVE.has(s.status)||s.status==="conflicted")).sort((a,b)=>a.start-b.start);
     const load=loads[selected],summary=document.createElement("p");summary.className="hint";
     summary.textContent=load.workingMinutes?`Meetings: ${hours(load.meetingMinutes)} / ${hours(load.workingMinutes)} (${Math.round(load.ratio*100)}%; target ≤50%). Continuous 2h focus: ${P.hasContinuousFocus(plan,selected)?"planned":"not yet secured"}.` : "No working time in the 9:30 AM–5:30 PM meeting window; marked out of office.";
     details.append(summary);
@@ -69,10 +70,11 @@
     for(const s of sessions){
       const row=document.createElement("div");row.className="row";row.dataset.sessionId=s.id;
       const title=document.createElement("div");title.className="title";title.textContent=`${time(s.start)} – ${time(s.end)}`;
-      const tag=document.createElement("span");tag.className="tag"+(["approved","existing"].includes(s.status)?" good":"");tag.textContent=s.status==="existing"?"On your calendar":s.status==="approved"?"Approved locally":s.status;title.append(tag);
-      const meta=document.createElement("small");meta.textContent=`${s.end-s.start} minutes`+(s.status==="proposed"&&!approveable(s)?" · Already started":"");title.append(meta);
+      const tag=document.createElement("span");tag.className="tag"+(["approved","existing"].includes(s.status)?" good":s.status==="conflicted"?" warn":"");tag.textContent=s.status==="existing"?"On your calendar":s.status==="approved"?"Approved locally":s.status;title.append(tag);
+      const meta=document.createElement("small");meta.textContent=`${s.end-s.start} minutes`+(s.status==="conflicted"?" · Conflicts with the latest calendar. Review available replacements.":"")+(s.status==="proposed"&&!approveable(s)?" · Already started":"");title.append(meta);
       const controls=document.createElement("div");controls.className="block-actions";
       const action=(text,status,disabled=false)=>{const b=document.createElement("button");b.type="button";b.className="btn";b.textContent=text;b.disabled=disabled;b.addEventListener("click",()=>update(s.id,status));controls.append(b);};
+      if(s.status==="conflicted")action("Dismiss conflict","rejected");
       if(s.status==="proposed"){action("Approve","approved",!approveable(s));action("Reject","rejected");}
       if(s.status==="approved"&&approveable(s))action("Remove from plan","rejected");
       if(["proposed","approved"].includes(s.status)&&approveable(s)){
@@ -162,10 +164,12 @@
     const file=event.target.files[0];if(!file)return;
     try{
       if(file.size>5*1024*1024)throw Error("Choose a JSON file smaller than 5 MB.");
-      const raw=JSON.parse(await file.text());
+      let raw=JSON.parse((await file.text()).replace(/^\uFEFF/,""));
+      if(window.FocusLocalCalendar&&raw?.schema!=="focus-planner-plan")raw=window.FocusLocalCalendar.snapshotFromJSON(raw,new Date(file.lastModified||Date.now()).toISOString());
       // Validate before asking to replace anything or touching saved state.
       if(raw.schema==="focus-planner-plan")P.validatePlan(raw);else P.validateSnapshot(raw);
       if(plan&&!window.confirm("Replace this browser's current plan? Download a backup first if you want to keep it."))return;
+      if(calendarConnection)await calendarConnection.disconnect();
       open(raw,raw.schema!=="focus-planner-plan");
     }catch(error){say("Import failed: "+error.message);}
     finally{event.target.value="";}
@@ -177,7 +181,7 @@
     persist();const url=URL.createObjectURL(new Blob([JSON.stringify(plan,null,2)],{type:"application/json"}));
     const a=document.createElement("a");a.href=url;a.download=`focus-plan-${plan.snapshot.windowStart}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
   });
-  $("demoMode").addEventListener("click",()=>{if(plan&&!window.confirm("Replace the current plan with synthetic demo data?"))return;open(P.demo(),true);say("Demo loaded. This is synthetic data.");});
+  $("demoMode").addEventListener("click",async()=>{if(plan&&!window.confirm("Replace the current plan with synthetic demo data?"))return;if(calendarConnection)await calendarConnection.disconnect();open(P.demo(),true);say("Demo loaded. This is synthetic data.");});
   $("reset").addEventListener("click",()=>{if(!plan||!window.confirm("Clear local planning decisions and regenerate from the same calendar extract?"))return;const next=P.createPlan(plan.snapshot,new Date().toISOString(),plan.config);P.generate(next);plan=next;persist();render();});
   $("protectCommute").addEventListener("change",event=>{
     const protect=event.target.checked;
@@ -191,5 +195,32 @@
     try{open(JSON.parse($("bootstrap").textContent),true);}catch(e){say("Could not load the bundled extract: "+e.message);}
   }
   render();
+  if(window.FocusLocalCalendar){
+    const supported=typeof window.showDirectoryPicker==="function";
+    const status=message=>{
+      $("calendarFileStatus").textContent=message;
+      $("refreshCalendar").disabled=!calendarConnection?.handle;
+      $("disconnectCalendar").disabled=!calendarConnection?.handle;
+    };
+    if(supported){
+      calendarConnection=new window.FocusLocalCalendar.Connection({status,apply:snapshot=>{
+        const result=window.FocusLocalCalendar.reconcile(plan,snapshot);
+        plan=result.plan;
+        persist(result.conflicts?`Calendar updated. ${result.conflicts} previous blocks now conflict and no longer count toward focus time. Review available replacements.`:"Calendar file updated. Valid planning decisions were kept; new blocks need local approval.");
+        render();
+      }});
+      $("connectCalendar").addEventListener("click",()=>calendarConnection.connect());
+      $("refreshCalendar").addEventListener("click",()=>calendarConnection.refresh(true));
+      $("disconnectCalendar").addEventListener("click",async()=>{await calendarConnection.disconnect();render();});
+      window.setInterval(()=>calendarConnection.refresh(),60000);
+      window.addEventListener("focus",()=>calendarConnection.refresh());
+      document.addEventListener("visibilitychange",()=>{if(!document.hidden)calendarConnection.refresh();});
+      calendarConnection.restore();
+    }else{
+      $("connectCalendar").disabled=true;
+      status("Automatic file updates need Edge or Chrome with folder access enabled. Use Import for a one-time load, or reopen in Edge or Chrome.");
+    }
+  }
 })();
+
 
