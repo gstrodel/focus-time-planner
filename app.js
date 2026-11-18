@@ -1,188 +1,116 @@
 "use strict";
 (() => {
-  const KEY = "focus-planner-v0.1";
-  const CONFIG = Object.freeze({ horizonDays: 42, dailyTargetMinutes: 120, minBlockMinutes: 60, startMinute: 9*60, endMinute: 17*60, preferMorning: true, conflictRecovery: true, approvalRequired: true });
-  const $ = id => document.getElementById(id);
-  const pad = n => String(n).padStart(2, "0");
-  const dayKey = d => [d.getFullYear(), pad(d.getMonth()+1), pad(d.getDate())].join("-");
-  const dateFromKey = key => { const [y,m,d]=key.split("-").map(Number); return new Date(y,m-1,d); };
-  const plusDays = (d,n) => { const x = new Date(d); x.setDate(x.getDate()+n); return x; };
-  const displayTime = m => `${Math.floor(m/60)%12||12}:${pad(m%60)} ${m<720?"AM":"PM"}`;
-  const weekdays = dates => dates.filter(d=>{const w=d.getDay();return w!==0&&w!==6;});
-  const overlap=(a,b)=>a.start<b.end&&b.start<a.end;
-  const demoMeetings = date => {
-    if(liveMode)return liveBusy?.[date]||[];
-    const n=Math.floor((dateFromKey(date)-dateFromKey(anchor))/86400000);
-    const result=[];
-    // Stable simulated meetings, varied by day and week.
-    if(n%3!==1)result.push({start:9*60+30,end:10*60+30,subject:"Team standup"});
-    if(n%4!==2)result.push({start:11*60,end:12*60,subject:"Working session"});
-    if(n%5===0)result.push({start:13*60,end:15*60,subject:"Project review"});
-    if(n%7===3)result.push({start:9*60,end:11*60,subject:"Planning meeting"});
-    if(n%9===5)result.push({start:14*60,end:16*60,subject:"Partner check-in"});
-    return result;
-  };
-  const anchor=dayKey(new Date());
-  let liveBusy = null;
-  let liveMode = false;
-  const createState=()=>({anchor, sessions:[], extraBusy:[], nextId:1});
-  let state;
-  try{state=JSON.parse(localStorage.getItem(KEY))||createState();if(state.anchor!==anchor||!Array.isArray(state.sessions)||!Array.isArray(state.extraBusy))state=createState();}
-  catch(_){state=createState();}
-  let selected=anchor;
-  const dates=Array.from({length:CONFIG.horizonDays},(_,i)=>plusDays(dateFromKey(anchor),i));
-  const workdays=weekdays(dates);
-  const inHorizon = date => workdays.some(d=>dayKey(d)===date);
-  const store=()=>{ if(!liveMode)localStorage.setItem(KEY,JSON.stringify(state)); };
-  const sessionsOn=date=>state.sessions.filter(s=>s.date===date);
-  const active=s=>["proposed","approved","completed"].includes(s.status);
-  const scheduledMinutes=date=>sessionsOn(date).filter(active).reduce((sum,s)=>sum+s.end-s.start,0);
-  const busyOn=date=>[...demoMeetings(date),...state.extraBusy.filter(e=>e.date===date),...sessionsOn(date).filter(active)];
-  function gaps(busy){
-    const blocked=busy.map(e=>({start:Math.max(CONFIG.startMinute,e.start),end:Math.min(CONFIG.endMinute,e.end)})).filter(e=>e.start<e.end).sort((a,b)=>a.start-b.start);
-    const merged=[];
-    for(const e of blocked){const last=merged[merged.length-1];if(last&&e.start<=last.end)last.end=Math.max(last.end,e.end);else merged.push({...e});}
-    const free=[];let cur=CONFIG.startMinute;
-    for(const e of merged){if(e.start-cur>=CONFIG.minBlockMinutes)free.push({start:cur,end:e.start});cur=Math.max(cur,e.end);}
-    if(CONFIG.endMinute-cur>=CONFIG.minBlockMinutes)free.push({start:cur,end:CONFIG.endMinute});
-    return free;
+  const P=window.FocusPlanner, KEY="focus-planner-v0.3", $=id=>document.getElementById(id);
+  let plan=null,selected=null;
+  const time=m=>`${Math.floor(m/60)%12||12}:${String(m%60).padStart(2,"0")} ${m%1440<720?"AM":"PM"}`;
+  const label=date=>new Date(date+"T12:00:00Z").toLocaleDateString("en-US",{timeZone:"UTC",weekday:"short",month:"short",day:"numeric"});
+  const hours=n=>(n/60).toFixed(n%60?1:0)+"h";
+  function say(message){$("notice").textContent=message;}
+  function persist(message="Plan saved in this browser. Outlook is unchanged.") {
+    if(!plan)return;
+    const previous=plan.savedAt;plan.savedAt=new Date().toISOString();
+    try{localStorage.setItem(KEY,JSON.stringify(plan));$("saveStatus").textContent="Saved "+new Date(plan.savedAt).toLocaleTimeString();if(message)say(message);return true;}
+    catch(_){plan.savedAt=previous;$("saveStatus").textContent="Browser storage unavailable — download a backup";say("The plan is open, but this browser could not save it. Use Download plan to keep your results.");return false;}
   }
-  function proposeForDate(date){
-    let needed=CONFIG.dailyTargetMinutes-scheduledMinutes(date);
-    if(needed<CONFIG.minBlockMinutes)return 0;
-    let added=0;
-    while(needed>=CONFIG.minBlockMinutes){
-      const options=gaps(busyOn(date)).map(g=>({...g,length:g.end-g.start})).filter(g=>g.length>=CONFIG.minBlockMinutes);
-      if(!options.length)break;
-      options.sort((a,b)=>{
-        const aMorning=a.start<12*60?0:1,bMorning=b.start<12*60?0:1;
-        if(aMorning!==bMorning)return aMorning-bMorning;
-        // Prefer a continuous slot if one meets the entire outstanding target.
-        const aFull=a.length>=needed?0:1,bFull=b.length>=needed?0:1;
-        return aFull-bFull||a.start-b.start;
-      });
-      const best=options[0];
-      let length=Math.min(best.length,needed);
-      // If no single block can satisfy the remainder, split into at least 60-minute blocks.
-      if(length<CONFIG.minBlockMinutes)break;
-      const session={id:state.nextId++,date,start:best.start,end:best.start+length,status:"proposed",recovered:false};
-      state.sessions.push(session);added++;needed-=length;
+  function approveable(s) {
+    const now=P.localParts(new Date().toISOString(),plan.snapshot.timeZone);
+    return s.date>now.date || s.date===now.date && s.start>now.minute;
+  }
+  function update(id,status) {
+    const s=plan.sessions.find(s=>s.id===id);if(!s)return;
+    if(s.status==="proposed" && ["approved","rejected"].includes(status)) {
+      if(status==="approved"&&!approveable(s)){say("That block has already started. Generate new proposals for the remaining time.");return;}
+    } else if(!(s.status==="approved" && ["completed","missed"].includes(status)))return;
+    s.status=status;persist();render();
+  }
+  function render() {
+    const loaded=!!plan;
+    for(const id of ["generate","save","export","approveAll","protectCommute","reset"])$(id).disabled=!loaded;
+    $("weeks").replaceChildren();$("detailBody").replaceChildren();
+    if(!loaded){$("modeBadge").textContent="Calendar extract · Offline prototype";$("sourceStatus").textContent="Import a six-week calendar extract or a saved plan. No sign-in needed.";$("weeks").textContent="Your six-week plan will appear here after import.";return;}
+    const snapshot=plan.snapshot,zoneLabel=snapshot.timeZone==="America/New_York"?"Eastern Time":snapshot.timeZone,days=P.workdays(snapshot),busy=P.intervals(snapshot),today=P.localParts(new Date().toISOString(),snapshot.timeZone).date;
+    $("modeBadge").textContent=snapshot.source==="demo"?"Demo · Synthetic availability":"Outlook extract · No live connection";
+    $("sourceStatus").textContent=`${label(snapshot.windowStart)} – ${label(P.addDays(snapshot.windowEnd,-1))}, ${snapshot.windowEnd.slice(0,4)}. Captured ${new Date(snapshot.capturedAt).toLocaleString("en-US",{timeZone:snapshot.timeZone})} (${snapshot.timeZone}). ${snapshot.events.length} calendar intervals. Availability is a snapshot; changes after capture are not reflected.`;
+    $("protectCommute").checked=plan.config.protectCommute;
+    $("target").textContent=hours(days.length*120);
+    const sum=status=>plan.sessions.filter(s=>s.status===status).reduce((n,s)=>n+s.end-s.start,0);
+    $("reserved").textContent=hours(sum("approved"));$("pending").textContent=hours(sum("proposed"));$("existing").textContent=hours(sum("existing"));
+    $("approveAll").disabled=!plan.sessions.some(s=>s.status==="proposed"&&approveable(s));
+    const covered=days.filter(d=>P.scheduled(plan,d)>=120).length;
+    const shortfall=days.reduce((n,d)=>n+Math.max(0,120-P.scheduled(plan,d)),0);
+    $("coverageSummary").textContent=`${covered} of ${days.length} weekdays covered · ${hours(shortfall)} below target · ${zoneLabel}`;
+    let group=null;
+    for(const date of days) {
+      if(!group || new Date(date+"T12:00:00Z").getUTCDay()===1){group=document.createElement("div");group.className="week";$("weeks").append(group);}
+      const minutes=P.scheduled(plan,date),sessions=plan.sessions.filter(s=>s.date===date);
+      const btn=document.createElement("button");btn.type="button";btn.dataset.date=date;
+      btn.className="day"+(date===selected?" selected":"")+(minutes<120?" unavailable":"")+(date<today?" past":"");
+      btn.setAttribute("aria-label",`${label(date)}: ${hours(minutes)} focus, ${hours(Math.max(0,120-minutes))} shortfall`);
+      const name=document.createElement("div");name.className="date";name.textContent=label(date);
+      const total=document.createElement("div");total.className="hours";total.textContent=hours(minutes)+" / 2h";
+      const sub=document.createElement("div");sub.className="sub";sub.textContent=minutes>=120?"Target covered":hours(120-minutes)+" below target";
+      const chips=document.createElement("div");chips.className="chips";
+      for(const s of sessions.filter(s=>P.ACTIVE.has(s.status))){const chip=document.createElement("span");chip.className="chip "+(s.status==="proposed"?"pending":s.status==="existing"?"calendar":"booked");chip.title=s.status;chips.append(chip);}
+      btn.append(name,total,sub,chips);btn.addEventListener("click",()=>{selected=date;render();});group.append(btn);
     }
-    return added;
-  }
-  function generate(){
-    if(liveMode&&!liveBusy){say("Sync Outlook calendar before generating proposals.");return;}
-    let added=0;
-    for(const d of workdays)added+=proposeForDate(dayKey(d));
-    store();render();say(added?`Generated ${added} proposals. Approve before reserving.`:"No new eligible gaps found.");
-  }
-  function say(msg){$("notice").textContent=msg;}
-  function setStatus(id,status){
-    const s=state.sessions.find(s=>s.id===id);
-    if(!s||!["proposed","approved"].includes(s.status))return;
-    if(status==="approved"&&s.status!=="proposed")return;
-    if((status==="completed"||status==="missed")&&s.status!=="approved")return;
-    s.status=status;store();render();
-  }
-  function simulate(){
-    if(liveMode){say("Conflict simulation is disabled for live Outlook data. Refresh Outlook to reassess availability.");return;}
-    const approved=state.sessions.find(s=>s.status==="approved"&&inHorizon(s.date));
-    if(!approved){say("Approve at least one proposed session first.");return;}
-    const collision={date:approved.date,start:approved.start,end:approved.end,subject:"New priority meeting"};
-    state.extraBusy.push(collision);
-    const collisions=state.sessions.filter(s=>s.date===collision.date&&s.status==="approved"&&overlap(s,collision));
-    collisions.forEach(s=>{s.status="conflicted";s.displacedAt=new Date().toISOString();});
-    let replaced=0;
-    if(CONFIG.conflictRecovery){
-      replaced=proposeForDate(collision.date);
-      // Mark newly generated candidates as recovery proposals.
-      state.sessions.filter(s=>s.date===collision.date&&s.status==="proposed"&&!s.recovered).forEach(s=>{s.recovered=true;});
-    }
-    selected=collision.date;store();render();
-    say(`Meeting displaced ${collisions.length} approved block(s). ${replaced} replacement proposal(s) require approval.`);
-  }
-  function render(){
-    $("modeBadge").textContent=liveMode?"Outlook · read-only":"Demo mode · No Outlook connection";
-    $("simulate").disabled=liveMode;
-    $("target").textContent=(workdays.length*2)+"h";
-    const sum=status=>state.sessions.filter(s=>s.status===status).reduce((n,s)=>n+s.end-s.start,0);
-    $("reserved").textContent=(sum("approved")/60).toFixed(1)+"h";
-    $("pending").textContent=(sum("proposed")/60).toFixed(1)+"h";
-    $("completed").textContent=state.sessions.filter(s=>s.status==="completed").length;
-    $("approveAll").disabled=!state.sessions.some(s=>s.status==="proposed");
-    $("weeks").replaceChildren();
-    for(let i=0;i<CONFIG.horizonDays;i+=7){
-      const week=document.createElement("div");week.className="week";
-      for(const d of weekdays(dates.slice(i,i+7))){
-        const key=dayKey(d), ss=sessionsOn(key);
-        const minutes=ss.filter(active).reduce((n,s)=>n+s.end-s.start,0);
-        const btn=document.createElement("button");btn.type="button";
-        btn.className="day"+(key===selected?" selected":"")+(minutes<120&&ss.length?" unavailable":"");
-        const date=document.createElement("div");date.className="date";date.textContent=d.toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"});
-        const hours=document.createElement("div");hours.className="hours";hours.textContent=(minutes/60).toFixed(minutes%60?1:0)+"/2h";
-        const sub=document.createElement("div");sub.className="sub";sub.textContent=ss.some(s=>s.status==="conflicted")?"Conflict detected":minutes<120?"Needs focus time":"Focus target covered";
-        const chips=document.createElement("div");chips.className="chips";
-        for(const s of ss.filter(s=>["proposed","approved","conflicted","completed"].includes(s.status))){
-          const chip=document.createElement("span");chip.className="chip "+(s.status==="conflicted"?"conflict":s.status==="proposed"?"pending":"booked");chip.title=s.status;chips.append(chip);
-        }
-        btn.append(date,hours,sub,chips);btn.addEventListener("click",()=>{selected=key;render();});week.append(btn);
-      }
-      $("weeks").append(week);
-    }
-    const day=dateFromKey(selected);
-    $("detailTitle").textContent=day.toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"});
-    const details=$("detailBody");details.replaceChildren();
-    const ss=sessionsOn(selected).sort((a,b)=>a.start-b.start);
-    const meetings=[...demoMeetings(selected),...(liveMode?[]:state.extraBusy.filter(e=>e.date===selected))].sort((a,b)=>a.start-b.start);
-    if(!ss.length){const p=document.createElement("p");p.className="hint";p.textContent="No focus sessions yet. Use Generate plan to find available blocks.";details.append(p);}
-    for(const s of ss){
-      const row=document.createElement("div");row.className="row";
-      const title=document.createElement("div");title.className="title";title.textContent=`${displayTime(s.start)} – ${displayTime(s.end)}`;
-      const tag=document.createElement("span");tag.className="tag"+(["approved","completed"].includes(s.status)?" good":s.status==="conflicted"?" warn":"");tag.textContent=s.status+(s.recovered?" · recovery":"");title.append(tag);
-      const meta=document.createElement("small");meta.textContent=`${s.end-s.start} minutes of focus`;title.append(meta);row.append(title);
+    $("detailTitle").textContent=label(selected)+" · "+zoneLabel;
+    const details=$("detailBody"),sessions=plan.sessions.filter(s=>s.date===selected).sort((a,b)=>a.start-b.start);
+    if(!sessions.length){const p=document.createElement("p");p.textContent="No focus blocks yet. Generate proposals to find available time.";details.append(p);}
+    for(const s of sessions){
+      const row=document.createElement("div");row.className="row";row.dataset.sessionId=s.id;
+      const title=document.createElement("div");title.className="title";title.textContent=`${time(s.start)} – ${time(s.end)}`;
+      const tag=document.createElement("span");tag.className="tag"+(["approved","completed","existing"].includes(s.status)?" good":"");tag.textContent=s.status==="existing"?"On your calendar":s.status==="approved"?"Approved locally":s.status;title.append(tag);
+      const meta=document.createElement("small");meta.textContent=`${s.end-s.start} minutes`+(s.status==="proposed"&&!approveable(s)?" · Already started":"");title.append(meta);
       const controls=document.createElement("div");controls.className="feedback";
-      const add=(label,status)=>{const b=document.createElement("button");b.className="btn";b.textContent=label;b.addEventListener("click",()=>setStatus(s.id,status));controls.append(b);};
-      if(s.status==="proposed"){add("Approve","approved");add("Reject","rejected");}
-      if(s.status==="approved"){add("Completed","completed");add("Missed","missed");}
-      row.append(controls);details.append(row);
+      const action=(text,status,disabled=false)=>{const b=document.createElement("button");b.type="button";b.className="btn";b.textContent=text;b.disabled=disabled;b.addEventListener("click",()=>update(s.id,status));controls.append(b);};
+      if(s.status==="proposed"){action("Approve","approved",!approveable(s));action("Reject","rejected");}
+      if(s.status==="approved"){action("Completed","completed");action("Missed","missed");}
+      row.append(title,controls);details.append(row);
     }
-    const p=document.createElement("p");p.className="hint";p.textContent="Simulated busy: "+(meetings.length?meetings.map(m=>`${displayTime(m.start)}–${displayTime(m.end)} ${m.subject}`).join("; "):"none");details.append(p);
-    const reported=state.sessions.filter(s=>["completed","missed"].includes(s.status));
-    const complete=reported.filter(s=>s.status==="completed").length;
-    const displaced=state.sessions.filter(s=>s.status==="conflicted").length;
-    $("insights").textContent=reported.length?`${complete} of ${reported.length} reported sessions completed (${Math.round(100*complete/reported.length)}%). ${displaced} disrupted block(s). Completion is self-reported.`:`No sessions reported yet. ${displaced} blocks displaced. Approve a session, then mark it completed or missed.`;
+    const heading=document.createElement("h4");heading.textContent="Calendar availability";details.append(heading);
+    for(const event of (busy[selected]||[]).sort((a,b)=>a.start-b.start)) {
+      const row=document.createElement("p");row.className="hint";row.textContent=`${event.start===0&&event.end===1440?"All day":time(event.start)+" – "+time(event.end)} · ${event.kind==="existing-focus"?"Existing focus":event.status==="oof"?"Out of office":event.status==="tentative"?"Tentative (held as busy)":"Busy"}`;details.append(row);
+    }
+    if(!(busy[selected]||[]).length){const p=document.createElement("p");p.className="hint";p.textContent="No blocking calendar events in this extract for this day.";details.append(p);}
+    const reported=plan.sessions.filter(s=>["completed","missed"].includes(s.status));
+    $("insights").textContent=reported.length?`${reported.filter(s=>s.status==="completed").length} of ${reported.length} reported sessions completed. Feedback is self-reported and saved with the plan.`:"Mark approved sessions completed or missed to start a feedback history.";
   }
-  $("connectOutlook").addEventListener("click",async()=>{
-    const button=$("connectOutlook");button.disabled=true;
-    $("outlookStatus").textContent="Connecting and reading calendar…";
-    try {
-      const tenantId=$("tenantId").value.trim(),clientId=$("clientId").value.trim();
-      if(location.protocol==="file:")throw Error("Open on http://localhost:8000/ instead of double-clicking index.html.");
-      await FocusOutlook.setup(tenantId,clientId);
-      const start=new Date(dateFromKey(anchor));const end=plusDays(start,CONFIG.horizonDays);
-      const result=await FocusOutlook.sync(start,end);
-      const byDate=FocusOutlook.toBusyByDate(result.events,start,end);
-      // Distinct plan for the live calendar: do not carry simulated approvals across.
-      liveMode=true;liveBusy=byDate;state=createState();selected=anchor;localStorage.removeItem(KEY);
-      render();$("outlookStatus").textContent=`Connected: ${result.account}. Read ${result.count} Outlook events through ${dayKey(plusDays(end,-1))}. No calendar writes.`;
-      say("Outlook synced. Generate plan to propose available slots.");
-    }catch(e){$("outlookStatus").textContent="Connection failed: "+(e.message||e);}
-    finally{button.disabled=false;}
+  function open(raw, autoGenerate=false) {
+    const next=raw.schema==="focus-planner-plan"?P.validatePlan(raw):P.createPlan(raw);
+    if(autoGenerate)P.generate(next);
+    plan=next;selected=P.workdays(plan.snapshot)[0];persist("Calendar extract loaded. Your plan is saved in this browser.");render();
+  }
+  $("import").addEventListener("change",async event=>{
+    const file=event.target.files[0];if(!file)return;
+    try{
+      if(file.size>5*1024*1024)throw Error("Choose a JSON file smaller than 5 MB.");
+      const raw=JSON.parse(await file.text());
+      // Validate before asking to replace anything or touching saved state.
+      if(raw.schema==="focus-planner-plan")P.validatePlan(raw);else P.validateSnapshot(raw);
+      if(plan&&!window.confirm("Replace this browser's current plan? Download a backup first if you want to keep it."))return;
+      open(raw,raw.schema!=="focus-planner-plan");
+    }catch(error){say("Import failed: "+error.message);}
+    finally{event.target.value="";}
   });
-  $("demoMode").addEventListener("click",()=>{
-    liveMode=false;liveBusy=null;state=createState();selected=anchor;store();render();
-    $("outlookStatus").textContent="Demo mode. Live calendar data cleared from memory.";
-  });
-  $("generate").addEventListener("click",generate);
-  $("approveAll").addEventListener("click",()=>{
-    let count=0;for(const s of state.sessions)if(s.status==="proposed"){s.status="approved";count++;}
-    store();render();say(`Approved ${count} demo blocks; no Outlook changes made.`);
-  });
-  $("simulate").addEventListener("click",simulate);
-  $("reset").addEventListener("click",()=>{if(!window.confirm("Reset all demo sessions and feedback?"))return;state=createState();selected=anchor;store();render();say("Demo reset.");});
+  $("generate").addEventListener("click",()=>{const n=P.generate(plan);persist(n?`Added ${n} proposed blocks. Approvals save locally; Outlook is unchanged.`:"No additional blocks fit the target and minimum length. Existing decisions were kept.");render();});
+  $("approveAll").addEventListener("click",()=>{let n=0;for(const s of plan.sessions)if(s.status==="proposed"&&approveable(s)){s.status="approved";n++;}persist(`Approved ${n} blocks locally. They are not reserved in Outlook.`);render();});
+  $("save").addEventListener("click",()=>persist());
   $("export").addEventListener("click",()=>{
-    const blob=new Blob([JSON.stringify({config:CONFIG,source:liveMode?"outlook-readonly":"demo",...state},null,2)],{type:"application/json"});
-    const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="focus-planner-demo.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+    persist();const url=URL.createObjectURL(new Blob([JSON.stringify(plan,null,2)],{type:"application/json"}));
+    const a=document.createElement("a");a.href=url;a.download=`focus-plan-${plan.snapshot.windowStart}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
   });
+  $("demoMode").addEventListener("click",()=>{if(plan&&!window.confirm("Replace the current plan with synthetic demo data?"))return;open(P.demo(),true);say("Demo loaded. This is synthetic data.");});
+  $("reset").addEventListener("click",()=>{if(!plan||!window.confirm("Clear approvals and feedback and regenerate from the same calendar extract?"))return;const next=P.createPlan(plan.snapshot,new Date().toISOString(),plan.config);P.generate(next);plan=next;persist();render();});
+  $("protectCommute").addEventListener("change",event=>{
+    const protect=event.target.checked;
+    if(!window.confirm("Rebuild the plan with this commuting preference? Approvals and feedback will be cleared.")){event.target.checked=plan.config.protectCommute;return;}
+    plan=P.createPlan(plan.snapshot,new Date().toISOString(),{protectCommute:protect});P.generate(plan);persist();render();
+  });
+  let saved=null;
+  try{saved=localStorage.getItem(KEY);}catch(_){say("Browser storage is unavailable. Download your plan to keep your results.");}
+  if(saved){try{plan=P.validatePlan(JSON.parse(saved));selected=P.workdays(plan.snapshot)[0];$("saveStatus").textContent="Restored saved plan";}catch(_){say("The saved plan could not be restored. It has not been overwritten; import a valid backup to continue.");}}
+  else if($("bootstrap")){
+    try{open(JSON.parse($("bootstrap").textContent),true);}catch(e){say("Could not load the bundled extract: "+e.message);}
+  }
   render();
 })();

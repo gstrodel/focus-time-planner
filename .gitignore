@@ -5,3 +5,10 @@ dist/
 !.env.example
 .DS_Store
 *.log
+
+
+# Personal calendar extracts and generated plans must remain outside git.
+calendar-extract-*.json
+focus-plan-*.json
+Focus_Planner_Test.html
+playwright-output/
