@@ -1,77 +1,94 @@
-# Focus Planner v0.1
+# Focus Planner v0.5
 
-A browser-based prototype for planning and protecting focus time with a rolling six-week horizon.
+An offline, browser-based six-week focus planner using an Outlook calendar **extract**. No Microsoft app registration or sign-in is needed for this release. Import your extract, review proposals, approve or reject them, and save the results. Approvals do not create Outlook appointments.
 
-## Initial configuration
+## Test it
 
-- Rolling horizon: **6 weeks** (42 calendar days, weekdays scheduled)
-- Daily focus target: **2 hours**
-- Minimum block: **60 minutes**
-- Preferred time: **morning**
-- Automatic conflict recovery: **on** (creates replacement proposals)
-- Approval required before calendar changes: **on**
+1. Download the app files together (`index.html`, `planner.js`, `app.js`). Open `index.html` in Edge or Chrome, or serve the folder with `py -m http.server 8000` and open `http://localhost:8000/`.
+2. Under **Your calendar extract**, select the six-week extract JSON provided separately. Proposals are generated automatically.
+3. Select a day and approve or reject blocks. **Approve all proposals** approves future blocks locally. Use **Add more focus time** to select an available window, start time and duration, including longer than two hours. Use **Extend 30 min** to lengthen a future local block; the revised block returns to proposed status for approval.
+4. Every change saves automatically to this browser. **Save plan** explicitly saves it again. **Download plan** exports the extract, planning decisions together as JSON. Import that file to resume in another browser or device.
 
-## Run
+A privately supplied, self-contained HTML test copy can include an extract already loaded. Open that file in your browser; all code is bundled and no network requests are needed. Download your plan as a backup, since browser storage may be cleared or may not be available for local files. Keep the same local filename/path when reopening. A saved plan already in the browser takes precedence over bundled data.
 
-Open `index.html` in a modern browser. No build process, server, dependencies, or credentials are required.
+No real calendar extract or generated personal plan belongs in this repository. The public app starts empty; **Try demo data** is explicitly synthetic. The previous v0.2 read-only adapter remains in `outlook.js` for a later release, but this release does not load it or its Microsoft authentication dependency.
 
-This is a **demo calendar**. It does **not** connect to Outlook or make changes to your Microsoft 365 calendar. Scheduling approvals update local browser state only. Changes and feedback persist in localStorage.
+## Planning preferences
 
-## Features
+| Setting | Value |
+| --- | --- |
+| Horizon | 42 calendar days, exclusive end boundary; weekdays only |
+| Daily minimum | One continuous 120-minute block; additional time is optional |
+| Additional blocks | At least 60 minutes; no two-hour daily cap |
+| Meeting goal | At most 50% of each workday (preference; no meeting edits) |
+| Working hours | 9:00 AM–5:30 PM Eastern |
+| Preferred focus time | Morning |
+| Meeting preference | Avoid before 9:30 AM |
+| Commute buffer | Optional checkbox excludes 9:00–9:30 from new focus proposals |
+| Approval | Required; saved locally only |
 
-1. Generate 42 days of candidate focus blocks around simulated meetings (weekdays only).
-2. View six weeks of scheduled coverage; inspect daily proposed, approved, and unmet focus time.
-3. Approve all proposed blocks or approve individual suggestions. Reject recommendations.
-4. Simulate a newly introduced meeting collision with an approved focus block and propose replacement time automatically; replacement still requires approval.
-5. Record completed or missed focus sessions. See basic completion and disruption metrics.
-6. Export current demo state as JSON; reset the demo.
+Meeting preference and focus availability are separate. Calendar events already before 9:30 still block scheduling. No new proposals are placed in past time; today's proposals begin at the next quarter hour. Existing calendar focus counts toward the target only in uninterrupted, unconflicted blocks of at least 60 minutes inside work hours. Overlapping existing focus is counted once. Busy, tentative, unknown, and out-of-office events block planning; free, working-elsewhere, cancelled, and declined events are excluded when preparing the extract. All-day and multi-day events are expanded across covered dates.
 
-## Scheduling algorithm
+Generate is idempotent: it retains decisions and first seeks a continuous two-hour block, preferring mornings among qualifying windows. If no such window is available, it fills up to the daily total in blocks of at least 60 minutes and flags the missing continuous block. Rejected slots are avoided by automatic generation until rebuilding the plan. Manual additions can deliberately reuse a rejected window. Days without sufficient capacity show their shortfall. Time off still appears as a target shortfall; holiday calendars and adjusted weekday targets are not inferred.
 
-For each weekday, the engine starts with a 9 AM–5 PM work window and excludes simulated busy events and previously approved focus reservations. Available 60-minute+ intervals are ranked by preferred morning placement, then duration/earliness. It attempts to reserve 120 minutes per day with blocks of at least 60 minutes. The engine does not overbook an unavailable day and shows a shortfall rather than pretending capacity exists.
+Select a day to add longer or additional focus proposals, even after the minimum is covered. Available windows exclude calendar events and active local blocks, respect the commute preference, and never include past time. Extend a future proposed or approved block by 30 minutes when free space follows it. Extensions reset approval. **Remove from plan** withdraws a future local approval; it does not remove calendar events. Existing Outlook focus remains read-only.
 
-Conflicts trigger **replacement proposals**, not unapproved calendar edits. Previously approved blocks that are displaced are marked as conflicted, and the UI requests a new approval. All actions are local demo state.
+The meeting-limit and continuous-focus indicators are retained from v0.2. The meeting limit uses the 9:30 AM–5:30 PM window, counts overlapping meetings once, and excludes existing focus. Explicit out-of-office intervals are removed from both meeting time and working time; fully out-of-office days are excluded from the meeting-limit day count. Holidays must be represented in the extract to be recognized. This goal is informational and does not move meetings.
 
-## Outlook integration design (not implemented)
+The interface shows upcoming dates and planning coverage. Completed/missed controls and outcome reporting have been removed. Older completed statuses restore as approved; older missed statuses restore as rejected. The existing browser storage key is retained to preserve saved plans.
 
-For production, register an organization-approved Microsoft Entra ID application; use MSAL delegated authorization and Microsoft Graph calendar APIs. Read `calendarView` across the six-week horizon (including expanded recurring meetings), interpret Outlook free/busy and mailbox timezone/working hours, preserve event IDs and etags, and re-check availability before each write. Write only approved Focus Planner-owned events using `Calendars.ReadWrite`; never modify unrelated meetings. Store ownership markers and avoid duplicates. Run reconciliation on a schedule or notifications, but queue proposed relocations for approval. Persist activity history securely, with retention and least privilege. Coordinate tenant policies and admin approval with IT.
+Changing the commute checkbox or using **Rebuild plan** explicitly clears local planning decisions after an in-app confirmation. Importing a new file replaces the current plan after confirmation. Invalid imports never replace it.
 
-## Limitations
+## Extract format
 
-- Simulated calendar events only; no live Microsoft Graph or notifications.
-- Work hours fixed at 9 AM–5 PM and local browser time.
-- Uses deterministic rules, not machine learning.
-- Single user/browser; localStorage is not an enterprise data store.
-- Demo conflict generation is synthetic; not an Outlook webhook.
+The upstream extract must include **all** relevant events in the window, including expanded recurring occurrences and exceptions. Fetch all pages; do not label a truncated response complete. If using date partitions, fetch every partition and deduplicate events overlapping boundaries. Dates are local calendar dates in `timeZone`; `windowEnd` is exclusive and exactly 42 days after `windowStart`.
 
-## Next milestone
-
-Read-only Microsoft Graph connection and timezone-safe recurring event expansion, followed by an explicit approval-gated write pipeline and durable audit history.
-
-
-## v0.2 — Read-only Outlook calendar (requires your Microsoft 365 tenant approval)
-
-The browser prototype now supports **read-only Outlook synchronization** directly through Microsoft Graph. It requests only the delegated `Calendars.Read` scope; it **cannot create, update, or delete Outlook events**, regardless of which focus blocks you approve in the prototype.
-
-### One-time Microsoft Entra setup
-
-1. Ask your Microsoft 365 administrator whether custom app registrations and delegated `Calendars.Read` are permitted in your organization. Do not bypass corporate app policies.
-2. Register a **single-tenant** application in Microsoft Entra ID. Under **Authentication**, add platform **Single-page application** with redirect URI `http://localhost:8000/` (including the final slash).
-3. Under **API permissions**, request delegated Microsoft Graph `Calendars.Read`, and obtain administrator consent if required by policy. No client secret, write scope, or application permission is needed.
-4. Copy the **Directory (tenant) ID** and **Application (client) ID** from the app overview. These are public identifiers, not secrets.
-
-### Launch locally (do not double-click the HTML for Outlook sign-in)
-
-Open a command prompt in the repository folder:
-
-```powershell
-py -m http.server 8000
+```json
+{
+  "schema": "focus-planner-snapshot",
+  "version": 1,
+  "source": "outlook-extract",
+  "timeZone": "America/New_York",
+  "capturedAt": "2026-11-18T16:00:00Z",
+  "windowStart": "2026-11-18",
+  "windowEnd": "2026-12-30",
+  "complete": true,
+  "events": [
+    {
+      "id": "local-event-1",
+      "start": "2026-11-18T14:30:00Z",
+      "end": "2026-11-18T15:30:00Z",
+      "status": "busy",
+      "kind": "busy",
+      "allDay": false
+    }
+  ]
+}
 ```
 
-Then open `http://localhost:8000/` in Microsoft Edge/Chrome. Enter the two Entra IDs in the Outlook panel and click **Connect & sync**. Authenticate with your work account and approve the requested read-only calendar scope if your organization permits it. The app reads up to 42 days of `/me/calendarView` including recurring occurrences, excludes free/working-elsewhere/cancelled/declined events, and generates local proposals from remaining gaps.
+Event timestamps require explicit UTC or numeric offsets. `status` is `busy`, `tentative`, `oof`, or `unknown`; `kind` is `busy` or `existing-focus`. Local pseudonymous IDs suffice. Optional `title`, plain-text `description`, and `organizer` (`name` and `email`) are retained for meeting review. Expand a meeting under Calendar availability to see its description and organizer. Outlook organizer may differ from a delegate who sent the invitation; this release does not retrieve the original invitation message sender. Bodies render as literal text, never executable markup. Attendee lists and original Outlook IDs are omitted. These details remain in your private extract, browser storage and downloaded plan, and are excluded from git. The planner uses the snapshot's timezone rather than the computer's timezone, including daylight-saving transitions. An extract cannot prove its own upstream completeness; the producer is responsible for the `complete` assertion.
 
-The Microsoft authentication library is loaded from Microsoft's CDN, so internet access is required.
+## Persistence and limits
 
-**Security notes:** The access token is handled by MSAL in browser session storage; the app never commits credentials or calendar content to GitHub. No calendar event titles are stored by the app. Only derived busy intervals are held in memory. Note that approved/proposed **focus slots** are persisted in localStorage; using the JSON Export button creates an explicitly downloaded file containing focus session times. Browser storage is not suitable for regulated sensitive information.
+- The extract and plan stay in memory and localStorage under `focus-planner-v0.4`. They persist across midnight and reloads, with the snapshot's fixed date window. Imported files are not uploaded by this app.
+- Results reflect availability when captured, not later cancellations or new meetings. The capture timestamp is always visible. Dynamic connectivity and automatic conflict recovery against Outlook are deferred.
+- Recheck current availability before making actual calendar reservations in a later workflow. No Outlook writes, notifications, background jobs or cloud plan storage are implemented.
+- Browser-local data is specific to that browser/origin and may be cleared. Export JSON for a portable backup. If localStorage fails, the app reports it and keeps download available.
+- Legacy v0.1–v0.3 storage is left untouched and not migrated. The scheduler is deterministic, not machine learning.
 
-**Important:** Each sync resets the local prototype plan to avoid treating stale suggestions as valid. The browser-side app has no server, and therefore cannot continually monitor conflicts while closed. Approval remains strictly local; it does **not** reserve time in Outlook. A subsequent phase requires an authorized write workflow and refresh/revalidation before event creation.
+## Validation
+
+Run the pure planning tests with Node 18+:
+
+```sh
+node --test tests/planner.test.js tests/app.test.js
+```
+
+The optional browser test requires Playwright, Chromium, and an environment that permits Chromium to open local sockets:
+
+```sh
+node tests/browser.cjs
+```
+
+It covers import, approvals, rejection, reload, download/restore, malformed imports, storage failure, an offline load and a narrow viewport. `PLAYWRIGHT_MODULE` and `CHROMIUM_PATH` can point to an existing local installation.
+
