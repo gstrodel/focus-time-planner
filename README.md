@@ -1,4 +1,4 @@
-# Focus Planner v0.4
+# Focus Planner v0.5
 
 An offline, browser-based six-week focus planner using an Outlook calendar **extract**. No Microsoft app registration or sign-in is needed for this release. Import your extract, review proposals, approve or reject them, and save the results. Approvals do not create Outlook appointments.
 
@@ -6,20 +6,21 @@ An offline, browser-based six-week focus planner using an Outlook calendar **ext
 
 1. Download the app files together (`index.html`, `planner.js`, `app.js`). Open `index.html` in Edge or Chrome, or serve the folder with `py -m http.server 8000` and open `http://localhost:8000/`.
 2. Under **Your calendar extract**, select the six-week extract JSON provided separately. Proposals are generated automatically.
-3. Select a day and approve or reject blocks. **Approve all proposals** approves future blocks locally. Record completed or missed sessions when reviewing your results.
-4. Every change saves automatically to this browser. **Save plan** explicitly saves it again. **Download plan** exports the extract, decisions and feedback together as JSON. Import that file to resume in another browser or device.
+3. Select a day and approve or reject blocks. **Approve all proposals** approves future blocks locally. Use **Add more focus time** to select an available window, start time and duration, including longer than two hours. Use **Extend 30 min** to lengthen a future local block; the revised block returns to proposed status for approval.
+4. Every change saves automatically to this browser. **Save plan** explicitly saves it again. **Download plan** exports the extract, planning decisions together as JSON. Import that file to resume in another browser or device.
 
 A privately supplied, self-contained HTML test copy can include an extract already loaded. Open that file in your browser; all code is bundled and no network requests are needed. Download your plan as a backup, since browser storage may be cleared or may not be available for local files. Keep the same local filename/path when reopening. A saved plan already in the browser takes precedence over bundled data.
 
-No real calendar extract or generated personal plan belongs in this repository. The public app starts empty; **Try demo data** is explicitly synthetic. The previous v0.2 read-only adapter remains in `outlook.js` for a later release, but v0.4 does not load it or its Microsoft authentication dependency.
+No real calendar extract or generated personal plan belongs in this repository. The public app starts empty; **Try demo data** is explicitly synthetic. The previous v0.2 read-only adapter remains in `outlook.js` for a later release, but this release does not load it or its Microsoft authentication dependency.
 
 ## Planning preferences
 
 | Setting | Value |
 | --- | --- |
 | Horizon | 42 calendar days, exclusive end boundary; weekdays only |
-| Daily target | 120 minutes |
-| Minimum block | 60 minutes |
+| Daily minimum | One continuous 120-minute block; additional time is optional |
+| Additional blocks | At least 60 minutes; no two-hour daily cap |
+| Meeting goal | At most 50% of each workday (preference; no meeting edits) |
 | Working hours | 9:00 AM–5:30 PM Eastern |
 | Preferred focus time | Morning |
 | Meeting preference | Avoid before 9:30 AM |
@@ -28,9 +29,13 @@ No real calendar extract or generated personal plan belongs in this repository. 
 
 Meeting preference and focus availability are separate. Calendar events already before 9:30 still block scheduling. No new proposals are placed in past time; today's proposals begin at the next quarter hour. Existing calendar focus counts toward the target only in uninterrupted, unconflicted blocks of at least 60 minutes inside work hours. Overlapping existing focus is counted once. Busy, tentative, unknown, and out-of-office events block planning; free, working-elsewhere, cancelled, and declined events are excluded when preparing the extract. All-day and multi-day events are expanded across covered dates.
 
-Generate is idempotent: it retains decisions and adds proposals only where the daily target remains unmet. Rejected slots are avoided until rebuilding the plan. The scheduler favors mornings, then continuous blocks, and keeps enough time for a second minimum block when splitting the target. Days without sufficient capacity show their shortfall. Time off still appears as a target shortfall; v0.4 does not infer holiday calendars or adjust the weekday target.
+Generate is idempotent: it retains decisions and first seeks a continuous two-hour block, preferring mornings among qualifying windows. If no such window is available, it fills up to the daily total in blocks of at least 60 minutes and flags the missing continuous block. Rejected slots are avoided by automatic generation until rebuilding the plan. Manual additions can deliberately reuse a rejected window. Days without sufficient capacity show their shortfall. Time off still appears as a target shortfall; holiday calendars and adjusted weekday targets are not inferred.
 
-Changing the commute checkbox or using **Rebuild plan** explicitly clears approvals and feedback after an in-app confirmation. Importing a new file replaces the current plan after confirmation. Invalid imports never replace it.
+Select a day to add longer or additional focus proposals, even after the minimum is covered. Available windows exclude calendar events and active local blocks, respect the commute preference, and never include past time. Extend a future proposed or approved block by 30 minutes when free space follows it. Extensions reset approval. **Remove from plan** withdraws a future local approval; it does not remove calendar events. Existing Outlook focus remains read-only.
+
+The interface shows upcoming dates and planning coverage. Completed/missed controls and outcome reporting have been removed. Older completed statuses restore as approved; older missed statuses restore as rejected. The existing browser storage key is retained to preserve saved plans.
+
+Changing the commute checkbox or using **Rebuild plan** explicitly clears local planning decisions after an in-app confirmation. Importing a new file replaces the current plan after confirmation. Invalid imports never replace it.
 
 ## Extract format
 
@@ -84,3 +89,4 @@ node tests/browser.cjs
 ```
 
 It covers import, approvals, rejection, reload, download/restore, malformed imports, storage failure, an offline load and a narrow viewport. `PLAYWRIGHT_MODULE` and `CHROMIUM_PATH` can point to an existing local installation.
+

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#13263c">
-  <title>Focus Planner — v0.4</title>
+  <title>Focus Planner — v0.5</title>
   <style>
     :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:#14253b;background:#f3f6fa;font-synthesis:none}
     *{box-sizing:border-box}body{margin:0}button{font:inherit;cursor:pointer}button:disabled{cursor:not-allowed;opacity:.45}
@@ -35,46 +35,48 @@
     .row .title{font-weight:650;font-size:13px}.row small{display:block;color:#708195;margin-top:4px}
     .tag{display:inline-block;border-radius:15px;padding:4px 8px;font-size:11px;background:#e9f1ff;color:#28589c;margin-left:8px}
     .tag.good{background:#e2f5e9;color:#147b4e}.tag.warn{background:#ffebe5;color:#9f4429}
-    .feedback{display:flex;gap:6px;flex-wrap:wrap}.feedback button{font-size:12px;padding:7px 9px}
+    .block-actions{display:flex;gap:6px;flex-wrap:wrap}.block-actions button{font-size:12px;padding:7px 9px}
+    .booking-form{padding:14px;background:#f3f6fa;border-radius:10px;margin-top:12px}.booking-form select{font:inherit;width:100%;padding:9px;border:1px solid #cbd7e4;border-radius:8px;background:white}.booking-form button{margin-top:14px}
     .meeting{padding:12px 0;border-bottom:1px solid #e1e8f0}.meeting summary{cursor:pointer;font-size:13px;font-weight:650;line-height:1.5}.meeting-description{white-space:pre-wrap;overflow-wrap:anywhere}.footer{margin:24px 0;color:#758499;font-size:12px;text-align:center}
     @media(max-width:950px){.grid{grid-template-columns:1fr}.side{grid-template-columns:1fr 1fr}}
     @media(max-width:620px){main{padding:15px}.top{padding:18px}.badge{display:none}.metrics{grid-template-columns:1fr 1fr}.side{grid-template-columns:1fr}.week{gap:4px}.day{min-height:105px;padding:8px 5px}.day .hours{font-size:16px}.day .date{font-size:10px}.day .sub{font-size:9px}}
   </style>
 </head>
 <body>
-<header class="top"><div><h1>Focus Planner <small style="font-size:12px;font-weight:500;opacity:.7">v0.4</small></h1><p>Protect the time you need to do meaningful work.</p></div><span class="badge" id="modeBadge">Calendar extract · Offline prototype</span></header>
+<header class="top"><div><h1>Focus Planner <small style="font-size:12px;font-weight:500;opacity:.7">v0.5</small></h1><p>Protect the time you need to do meaningful work.</p></div><span class="badge" id="modeBadge">Calendar extract · Offline prototype</span></header>
 <main>
-  <section class="card lead"><div><h2>Your six-week focus plan</h2><p>Find two hours every weekday, favoring mornings. Review and save your choices here.</p></div>
+  <section class="card lead"><div><h2>Your six-week focus plan</h2><p>Plan at least one continuous two-hour focus block each workday, preferably in the morning. Add more whenever your day allows.</p></div>
   <div class="actions"><button class="btn primary" id="generate">Generate plan</button><button class="btn" id="approveAll">Approve all proposals</button><button class="btn" id="save">Save plan</button><button class="btn" id="export">Download plan</button></div></section>
   <section class="metrics" aria-label="Plan metrics">
-    <div class="card metric"><span>Target hours</span><strong id="target">0h</strong></div>
+    <div class="card metric"><span>Minimum focus hours</span><strong id="target">0h</strong></div>
     <div class="card metric"><span>Approved locally</span><strong id="reserved">0h</strong></div>
     <div class="card metric"><span>Awaiting approval</span><strong id="pending">0h</strong></div>
     <div class="card metric"><span>Existing calendar focus</span><strong id="existing">0</strong></div>
   </section>
   <div class="grid">
     <aside class="side"><section class="card"><h3>Your calendar extract</h3>
-<p class="hint">Import your Outlook extract to find focus time and review meeting descriptions and organizers. Import a downloaded plan to restore approvals and feedback.</p>
+<p class="hint">Import your Outlook extract to find focus time and review meeting descriptions and organizers. Import a downloaded plan to restore your planning decisions.</p>
 <label for="import">Calendar extract or saved plan (.json)</label><input id="import" type="file" accept=".json,application/json">
 <p class="hint" id="sourceStatus" role="status"></p>
 <p class="save-status" id="saveStatus" role="status">Changes save automatically in this browser.</p>
 <button class="btn" id="demoMode">Try demo data</button>
 </section><section class="card"><h3>Planning preferences</h3>
       <div class="setting"><span>Rolling horizon</span><b>6 weeks</b></div>
-      <div class="setting"><span>Daily focus target</span><b>2 hours</b></div>
-      <div class="setting"><span>Minimum block</span><b>60 minutes</b></div>
+      <div class="setting"><span>Daily focus minimum</span><b>2 hours, continuous</b></div>
+      <div class="setting"><span>Additional blocks</span><b>60 minutes or longer</b></div>
+      <div class="setting"><span>Meeting goal</span><b>At most 50% of the day</b></div>
       <div class="setting"><span>Preferred time</span><b>Morning</b></div>
       <div class="setting"><span>Working hours</span><b>9:00–5:30</b></div><div class="setting"><span>Meetings preferred after</span><b>9:30 AM</b></div><label style="line-height:1.6"><input type="checkbox" id="protectCommute"> Keep 9:00–9:30 free for commuting</label>
       <div class="setting"><span>Approval before changes</span><b>Required</b></div>
       <p class="hint">Existing calendar focus counts toward the target. Tentative events and time off block scheduling. Approvals are saved locally; they do not book Outlook events.</p></section>
       <section class="card"><h3>Plan status</h3><p class="hint" id="notice" role="status">Import an extract to get started.</p><p class="hint">Save in this browser to revisit the plan. Download a backup to keep it across browsers or devices. This extract will not refresh automatically.</p></section>
-      <section class="card"><h3>Feedback</h3><div id="insights" class="hint">Approve some sessions and report outcomes to see feedback.</div>
+      <section class="card"><h3>Plan controls</h3><p class="hint">Select a day to add more focus time or extend a future block. Every added or extended block needs local approval.</p>
       <button class="btn danger" id="reset" style="margin-top:14px">Rebuild plan</button></section>
     </aside>
     <section class="card"><div class="panelhead"><h3>Calendar coverage</h3><div class="legend"><span><i class="dot proposed"></i>Proposed</span><span><i class="dot approved"></i>Approved</span><span><i class="dot existing"></i>On calendar</span><span><i class="dot shortfall"></i>Shortfall</span></div></div>
       <p class="hint" id="coverageSummary"></p><div class="weeks" id="weeks"></div><section class="detail"><h3 id="detailTitle">Select a day</h3><div id="detailBody" class="hint">Generate a plan to see suggested sessions.</div></section>
     </section>
-  </div><p class="footer">Prototype v0.4 · Calendar extract · Local browser storage · No Microsoft 365 writes</p>
+  </div><p class="footer">Prototype v0.5 · Calendar extract · Local browser storage · No Microsoft 365 writes</p>
 </main>
 <script src="planner.js" defer></script>
 <script src="app.js" defer></script>

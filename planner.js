@@ -8,8 +8,8 @@
   const CONFIG = Object.freeze({horizonDays:42, dailyTargetMinutes:120, minBlockMinutes:60,
     startMinute:540, endMinute:1050, preferMorning:true, meetingStartMinute:570,
     protectCommute:false, approvalRequired:true});
-  const ACTIVE = new Set(["proposed", "approved", "completed", "existing"]);
-  const STATUSES = new Set(["proposed", "approved", "completed", "existing", "rejected", "missed"]);
+  const ACTIVE = new Set(["proposed", "approved", "existing"]);
+  const STATUSES = new Set(["proposed", "approved", "existing", "rejected"]);
   const pad = n => String(n).padStart(2, "0");
   const addDays = (key, n) => new Date(Date.parse(key+"T12:00:00Z")+n*86400000).toISOString().slice(0,10);
   const isDate = key => typeof key === "string" && /^\d{4}-\d{2}-\d{2}$/.test(key) && !isNaN(Date.parse(key+"T12:00:00Z")) && addDays(key,0)===key;
@@ -83,22 +83,40 @@
     return plan;
   }
   const scheduled = (plan,date) => merge(plan.sessions.filter(s=>s.date===date && ACTIVE.has(s.status))).reduce((n,s)=>n+s.end-s.start,0);
+  const hasContinuousFocus = (plan,date) => merge(plan.sessions.filter(s=>s.date===date && ACTIVE.has(s.status))).some(s=>s.end-s.start>=CONFIG.dailyTargetMinutes);
+  function available(plan,date,now=new Date().toISOString(),excludeId=null,respectRejected=false) {
+    const today=localParts(now,plan.snapshot.timeZone);
+    if(!workdays(plan.snapshot).includes(date)||date<today.date)return [];
+    const lower=Math.max(plan.config.protectCommute?570:540,date===today.date?Math.ceil((today.minute+1)/15)*15:0);
+    const occupied=[...(intervals(plan.snapshot)[date]||[]),...plan.sessions.filter(s=>s.date===date&&s.id!==excludeId&&(ACTIVE.has(s.status)||(respectRejected&&s.status==="rejected")))];
+    return gaps(occupied,lower,CONFIG.endMinute,CONFIG.minBlockMinutes);
+  }
+  function addBlock(plan,date,start,end,now=new Date().toISOString()) {
+    if(!Number.isInteger(start)||!Number.isInteger(end)||end-start<CONFIG.minBlockMinutes||!available(plan,date,now).some(g=>g.start<=start&&g.end>=end))throw Error("Choose at least 60 minutes within an available future window.");
+    const session={id:plan.nextId++,date,start,end,status:"proposed"};
+    plan.sessions.push(session);return session;
+  }
+  function extendBlock(plan,id,minutes=30,now=new Date().toISOString()) {
+    const s=plan.sessions.find(s=>s.id===id);
+    const today=localParts(now,plan.snapshot.timeZone);
+    if(!s||!["proposed","approved"].includes(s.status)||s.date<today.date||s.date===today.date&&s.start<=today.minute||!Number.isInteger(minutes)||minutes<=0||!available(plan,s.date,now,s.id).some(g=>g.start<=s.start&&g.end>=s.end+minutes))throw Error("This block cannot be extended into the next 30 minutes.");
+    s.end+=minutes;s.status="proposed";return s;
+  }
   function generate(plan, now=new Date().toISOString()) {
-    const busy=intervals(plan.snapshot), today=localParts(now,plan.snapshot.timeZone);
     let count=0;
     for(const date of workdays(plan.snapshot)) {
-      if(date<today.date)continue;
-      let need=CONFIG.dailyTargetMinutes-scheduled(plan,date);
-      const lower=Math.max(plan.config.protectCommute?570:540,date===today.date?Math.ceil((today.minute+1)/15)*15:0);
+      let need=Math.max(0,CONFIG.dailyTargetMinutes-scheduled(plan,date));
+      const options=()=>available(plan,date,now,null,true).sort((a,b)=>(a.start<720?0:1)-(b.start<720?0:1)||a.start-b.start);
+      // Secure a continuous two-hour block before filling smaller gaps.
+      if(!hasContinuousFocus(plan,date)) {
+        const whole=options().find(g=>g.end-g.start>=CONFIG.dailyTargetMinutes);
+        if(whole){addBlock(plan,date,whole.start,whole.start+CONFIG.dailyTargetMinutes,now);count++;continue;}
+      }
       while(need>=CONFIG.minBlockMinutes) {
-        const occupied=[...(busy[date]||[]),...plan.sessions.filter(s=>s.date===date && (ACTIVE.has(s.status)||s.status==="rejected"))];
-        const options=gaps(occupied,lower,CONFIG.endMinute).map(g=>({...g,length:g.end-g.start}));
-        options.sort((a,b)=>(a.start<720?0:1)-(b.start<720?0:1) || (a.length>=need?0:1)-(b.length>=need?0:1) || a.start-b.start);
-        if(!options.length)break;
-        const best=options[0];
-        let length=Math.min(best.length,need);
-        if(need-length>0 && need-length<CONFIG.minBlockMinutes && need>=2*CONFIG.minBlockMinutes)length=need-CONFIG.minBlockMinutes;
-        plan.sessions.push({id:plan.nextId++,date,start:best.start,end:best.start+length,status:"proposed"});need-=length;count++;
+        const best=options()[0];if(!best)break;
+        let length=Math.min(best.end-best.start,need);
+        if(need-length>0&&need-length<CONFIG.minBlockMinutes&&need>=2*CONFIG.minBlockMinutes)length=need-CONFIG.minBlockMinutes;
+        addBlock(plan,date,best.start,best.start+length,now);need-=length;count++;
       }
     }
     return count;
@@ -109,6 +127,8 @@
     const dates=new Set(workdays(plan.snapshot)),byDate=intervals(plan.snapshot),ids=new Set();
     if(!Array.isArray(raw.sessions) || raw.sessions.length>10000 || !Number.isSafeInteger(raw.nextId))throw Error("Invalid saved sessions.");
     const imported=raw.sessions.map(s=>{
+      if(s?.status==="completed")s={...s,status:"approved"};
+      if(s?.status==="missed")s={...s,status:"rejected"};
       if(!s || !Number.isSafeInteger(s.id)||s.id<1||ids.has(s.id)||!dates.has(s.date)||!STATUSES.has(s.status)||!Number.isInteger(s.start)||!Number.isInteger(s.end)||s.start<540||s.end>1050||s.end-s.start<60)throw Error("Invalid saved focus block.");
       ids.add(s.id);
       if(ACTIVE.has(s.status)) {
@@ -130,5 +150,5 @@
       events.push({id:"demo-"+i,start:date+"T15:00:00Z",end:date+"T16:00:00Z",status:"busy",kind:"busy",allDay:false});}
     return {schema:"focus-planner-snapshot",version:1,source:"demo",timeZone,capturedAt:now,windowStart:start,windowEnd:addDays(start,42),complete:true,events};
   }
-  return {CONFIG,ACTIVE,addDays,localParts,overlap,validateSnapshot,validatePlan,workdays,intervals,merge,gaps,createPlan,scheduled,generate,demo};
+  return {CONFIG,ACTIVE,addDays,localParts,overlap,validateSnapshot,validatePlan,workdays,intervals,merge,gaps,createPlan,scheduled,hasContinuousFocus,available,addBlock,extendBlock,generate,demo};
 });

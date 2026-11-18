@@ -3,6 +3,31 @@ const {test}=require("node:test"),assert=require("node:assert/strict"),P=require
 const NOW="2026-11-18T13:00:00Z";
 const snapshot=(events=[])=>({schema:"focus-planner-snapshot",version:1,source:"outlook-extract",timeZone:"America/New_York",capturedAt:NOW,windowStart:"2026-11-18",windowEnd:"2026-12-30",complete:true,events});
 const event=(id,start,end,kind="busy",status="busy")=>({id,start,end,kind,status});
+test("manual additions can exceed two hours and round-trip through saved plans",()=>{
+ const plan=P.createPlan(snapshot(),NOW);
+ P.addBlock(plan,"2026-11-18",540,720,NOW);P.addBlock(plan,"2026-11-18",750,930,NOW);
+ assert.equal(P.scheduled(plan,"2026-11-18"),360);assert.ok(P.hasContinuousFocus(plan,"2026-11-18"));
+ assert.deepEqual(P.validatePlan(JSON.parse(JSON.stringify(plan))),plan);
+ assert.throws(()=>P.addBlock(plan,"2026-11-18",690,810,NOW));
+});
+test("manual additions respect calendar events, time off, work hours, commute and past time",()=>{
+ const plan=P.createPlan(snapshot([event("m","2026-11-18T15:00:00Z","2026-11-18T16:00:00Z"),event("away","2026-11-19T05:00:00Z","2026-11-20T05:00:00Z","busy","oof")]),NOW,{protectCommute:true});
+ for(const [date,start,end] of [["2026-11-18",540,660],["2026-11-18",570,690],["2026-11-18",1000,1120],["2026-11-19",570,750],["2026-11-21",570,750]])assert.throws(()=>P.addBlock(plan,date,start,end,NOW));
+ assert.throws(()=>P.addBlock(plan,"2026-11-18",570,750,"2026-11-18T17:00:00Z"));
+ assert.throws(()=>P.addBlock(plan,"2026-11-18",660,690,NOW));
+});
+test("extensions reset approval and stop at calendar conflicts or past starts",()=>{
+ const plan=P.createPlan(snapshot([event("m","2026-11-18T18:00:00Z","2026-11-18T19:00:00Z")]),NOW);
+ const s=P.addBlock(plan,"2026-11-18",600,720,NOW);s.status="approved";
+ P.extendBlock(plan,s.id,30,NOW);assert.equal(s.end,750);assert.equal(s.status,"proposed");
+ P.extendBlock(plan,s.id,30,NOW);assert.equal(s.end,780);assert.throws(()=>P.extendBlock(plan,s.id,30,NOW));
+ assert.throws(()=>P.extendBlock(plan,s.id,30,"2026-11-18T16:00:00Z"));
+});
+test("legacy completed and missed statuses restore as planning decisions",()=>{
+ const plan=P.createPlan(snapshot(),NOW);const s=P.addBlock(plan,"2026-11-18",540,660,NOW);
+ s.status="completed";assert.equal(P.validatePlan(plan).sessions[0].status,"approved");
+ s.status="missed";assert.equal(P.validatePlan(plan).sessions[0].status,"rejected");
+});
 test("42-day extract: weekday plans meet targets, stay in work hours and never overlap calendar events",()=>{
  const raw=snapshot([event("m","2026-11-18T14:30:00Z","2026-11-18T15:30:00Z"),event("oof","2026-11-19T05:00:00Z","2026-11-20T05:00:00Z","busy","oof")]);
  const plan=P.createPlan(raw,NOW);P.generate(plan,NOW);const busy=P.intervals(raw);
@@ -11,13 +36,13 @@ test("42-day extract: weekday plans meet targets, stay in work hours and never o
  assert.equal(P.scheduled(plan,"2026-11-18"),120);
  const n=plan.sessions.length;assert.equal(P.generate(plan,NOW),0);assert.equal(plan.sessions.length,n);
 });
-test("90-minute morning gap is split to allow another minimum block and reach two hours",()=>{
+test("continuous afternoon block takes priority over fragmented morning gaps",()=>{
  const plan=P.createPlan(snapshot([event("meeting","2026-11-18T15:30:00Z","2026-11-18T17:00:00Z")]),NOW);
- P.generate(plan,NOW);assert.equal(P.scheduled(plan,"2026-11-18"),120);assert.deepEqual(plan.sessions.filter(s=>s.date==="2026-11-18").map(s=>s.end-s.start),[60,60]);
+ P.generate(plan,NOW);assert.equal(P.scheduled(plan,"2026-11-18"),120);assert.deepEqual(plan.sessions.filter(s=>s.date==="2026-11-18").map(s=>s.end-s.start),[120]);
 });
 test("existing focus counts once, overlapping meetings take priority, no calendar duplication",()=>{
  const plan=P.createPlan(snapshot([event("f","2026-11-18T14:00:00Z","2026-11-18T16:00:00Z","existing-focus"),event("f2","2026-11-18T14:00:00Z","2026-11-18T16:00:00Z","existing-focus"),event("m","2026-11-18T15:00:00Z","2026-11-18T16:00:00Z")]),NOW);
- assert.equal(P.scheduled(plan,"2026-11-18"),60);P.generate(plan,NOW);assert.equal(P.scheduled(plan,"2026-11-18"),120);
+ assert.equal(P.scheduled(plan,"2026-11-18"),60);P.generate(plan,NOW);assert.equal(P.scheduled(plan,"2026-11-18"),180);assert.ok(P.hasContinuousFocus(plan,"2026-11-18"));
  assert.deepEqual(P.validatePlan(JSON.parse(JSON.stringify(plan))),plan);
 });
 test("multi-day time off blocks every covered weekday and explicit offsets cross DST correctly",()=>{
@@ -33,8 +58,8 @@ test("past time is never proposed and rejected proposals are not silently regene
  const plan=P.createPlan(snapshot(),NOW);P.generate(plan,"2026-11-19T17:03:00Z");assert.ok(plan.sessions.every(s=>s.date>"2026-11-19"||s.date==="2026-11-19"&&s.start>=735));
  const rejected=plan.sessions[0];rejected.status="rejected";P.generate(plan,"2026-11-19T17:03:00Z");assert.equal(plan.sessions.some(s=>s.id!==rejected.id&&s.date===rejected.date&&P.overlap(s,rejected)),false);
 });
-test("saved decisions, feedback and snapshot survive serialization; invalid imports fail closed",()=>{
- const plan=P.createPlan(snapshot(),NOW);P.generate(plan,NOW);plan.sessions[0].status="approved";plan.sessions[1].status="completed";plan.savedAt=NOW;
+test("saved planning decisions and snapshot survive serialization; invalid imports fail closed",()=>{
+ const plan=P.createPlan(snapshot(),NOW);P.generate(plan,NOW);plan.sessions[0].status="approved";plan.sessions[1].status="approved";plan.savedAt=NOW;
  assert.deepEqual(P.validatePlan(JSON.parse(JSON.stringify(plan))),plan);
  assert.throws(()=>P.validateSnapshot({...snapshot(),complete:false}));assert.throws(()=>P.validateSnapshot({...snapshot(),windowEnd:"2027-01-01"}));
  assert.throws(()=>P.validateSnapshot(snapshot([event("x","bad","2026-11-18T15:00:00Z")])));
@@ -47,3 +72,4 @@ test("meeting titles, literal descriptions and organizers survive import and sav
  assert.deepEqual(restored.snapshot.events[0],plan.snapshot.events[0]);assert.equal(P.intervals(restored.snapshot)["2026-11-18"][0].description,raw.events[0].description);
  assert.throws(()=>P.validateSnapshot(snapshot([{...raw.events[0],description:{html:"not plain text"}}])));
 });
+

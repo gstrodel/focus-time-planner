@@ -31,11 +31,12 @@ test('bundled saved plan initializes offline, then existing browser decisions ta
  const plan=P.createPlan(P.demo());P.generate(plan);plan.sessions[0].status='approved';plan.savedAt=new Date().toISOString();const app=boot(new Map(),plan);assert.equal(app.state().sessions[0].status,'approved');
  app.nodes.approveAll.click();const restored=boot(app.storage,P.createPlan(P.demo()));assert.deepEqual(restored.state(),app.state());
 });
-test('saved outcome and rejection survive plan download/reimport semantics',async()=>{
- const plan=P.createPlan(P.demo());P.generate(plan);plan.sessions[0].status='completed';plan.sessions[1].status='rejected';plan.savedAt=new Date().toISOString();const app=boot();await app.import(plan);assert.equal(app.state().sessions[0].status,'completed');assert.equal(app.state().sessions[1].status,'rejected');assert.match(app.nodes.insights.textContent,/1 of 1/);
+test('legacy outcome statuses migrate to planning decisions without outcome controls',async()=>{
+ const plan=P.createPlan(P.demo());P.generate(plan);plan.sessions[0].status='completed';plan.sessions[1].status='rejected';plan.savedAt=new Date().toISOString();const app=boot();await app.import(plan);assert.equal(app.state().sessions[0].status,'approved');assert.equal(app.state().sessions[1].status,'rejected');assert.equal(app.nodes.insights,undefined);
 });
 test('calendar details show organizer and render description as literal text',async()=>{
  const raw=P.demo();raw.events[0].title='Planning review';raw.events[0].description='<img src=x onerror=alert(1)> Agenda';raw.events[0].organizer={name:'Organizer Name',email:'person@example.test'};
  const app=boot();await app.import(raw);
  const meeting=app.nodes.detailBody.children.find(e=>e.tag==='details');assert.ok(meeting);assert.match(meeting.children[0].textContent,/Planning review/);assert.match(meeting.children[1].textContent,/Organizer Name <person@example.test>/);assert.equal(meeting.children[2].textContent,raw.events[0].description);
 });
+
