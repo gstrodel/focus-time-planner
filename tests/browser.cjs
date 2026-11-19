@@ -6,7 +6,7 @@ const P=require('../planner.js');
  const context=await browser.newContext({timezoneId:'America/Los_Angeles',viewport:{width:1440,height:1000},acceptDownloads:true});
  const page=await context.newPage(),errors=[],network=[];page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>{if(/^https?:/.test(r.url()))network.push(r.url());});
  const url='file://'+path.resolve(__dirname,'../index.html');
- await context.setOffline(true);await page.goto(url);assert.match(await page.locator('#sourceStatus').innerText(),/Import/);
+ await context.setOffline(true);await page.goto(url);assert.equal(await page.locator('#sourceStatus').count(),0);
  const raw=P.demo(),first=P.workdays(raw)[0];
  const upload=async data=>page.locator('#import').setInputFiles({name:'calendar.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(data))});
  await upload(raw);await page.waitForFunction(()=>document.querySelectorAll('.day').length===30);

@@ -2,6 +2,25 @@
 const {test}=require("node:test"),assert=require("node:assert/strict"),P=require("../planner.js");
 const NOW="2026-11-18T13:00:00Z";
 const snapshot=(events=[])=>({schema:"focus-planner-snapshot",version:1,source:"outlook-extract",timeZone:"America/New_York",capturedAt:NOW,windowStart:"2026-11-18",windowEnd:"2026-12-30",complete:true,events});
+test('calendar import keeps 6 AM–10 PM Eastern meetings across offsets and daylight saving',()=>{
+ for(const [date,offset] of [['2026-12-07','-05:00'],['2026-07-07','-04:00']]){
+  const meeting=(id,start,end,endDate=date)=>({id,start:date+'T'+start+offset,end:endDate+'T'+end+offset,status:'busy',kind:'busy'});
+  const events=[meeting('overnight','02:05:00','03:00:00'),meeting('ends-at-six','05:00:00','06:00:00'),
+   meeting('six','06:00:00','07:00:00'),meeting('early-overlap','05:30:00','06:00:00.001'),
+   meeting('late','21:00:00','22:00:00'),meeting('late-overlap','21:30:00','22:30:00'),meeting('starts-at-ten','22:00:00','23:00:00'),
+   meeting('cross-midnight','23:00:00','05:00:00',P.addDays(date,1)),meeting('cross-midnight-overlap','23:00:00','07:00:00',P.addDays(date,1)),
+   {...meeting('holiday','00:00:00','00:00:00',P.addDays(date,1)),allDay:true,status:'oof',title:'PTO'}];
+  const raw={...snapshot(events),windowStart:date,windowEnd:P.addDays(date,42)};
+  const expected=['six','early-overlap','late','late-overlap','cross-midnight-overlap','holiday'];
+  assert.deepEqual(P.validateSnapshot(raw).events.map(e=>e.id),expected);
+  assert.deepEqual(P.validateSnapshot({...raw,timeZone:'America/Los_Angeles'}).events.map(e=>e.id),expected);
+  const utc={...raw,events:events.map(e=>({...e,start:new Date(e.start).toISOString(),end:new Date(e.end).toISOString()}))};
+  assert.deepEqual(P.validateSnapshot(utc).events.map(e=>e.id),expected);
+  assert.equal(Object.values(P.intervals(raw)).flat().some(e=>['overnight','starts-at-ten','cross-midnight'].includes(e.id)),false);
+  const plan=P.createPlan(raw,NOW);P.generate(plan,NOW);
+  const legacy={...plan,snapshot:raw};assert.deepEqual(P.validatePlan(legacy).snapshot.events.map(e=>e.id),expected);
+ }
+});
 const event=(id,start,end,kind="busy",status="busy")=>({id,start,end,kind,status});
 test("meeting limit uses unioned meeting time, excludes focus, and removes time off from both sides",()=>{
  const raw=snapshot([event("a","2026-11-18T14:00:00Z","2026-11-18T17:00:00Z"),event("b","2026-11-18T16:00:00Z","2026-11-18T18:00:00Z"),event("f","2026-11-18T18:00:00Z","2026-11-18T19:00:00Z","existing-focus"),event("away","2026-11-18T17:00:00Z","2026-11-18T19:00:00Z","busy","oof"),event("pto","2026-11-19T05:00:00Z","2026-11-20T05:00:00Z","busy","oof")]);
