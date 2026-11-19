@@ -28,7 +28,7 @@
     renderCalendarExport();
     for(const id of ["generate","save","export","approveAll","protectCommute","reset"])$(id).disabled=!loaded;
     $("weeks").replaceChildren();$("detailBody").replaceChildren();
-    if(!loaded){$("modeBadge").textContent="Calendar extract · Offline prototype";$("sourceStatus").textContent="Import a six-week calendar extract or a saved plan. No sign-in needed.";$("weeks").textContent="Your six-week plan will appear here after import.";return;}
+    if(!loaded){$("modeBadge").textContent="Calendar extract · Offline prototype";$("sourceStatus").textContent="Import a six-week calendar extract or a saved plan. No sign-in needed.";$("weeks").textContent="Your six-week plan will appear here after import.";$("detailTitle").textContent="Select a day";$("detailBody").textContent="Import your calendar or try demo data, then select a day to see its calendar and focus time.";return;}
     const snapshot=plan.snapshot,zoneLabel=snapshot.timeZone==="America/New_York"?"Eastern Time":snapshot.timeZone,today=P.localParts(new Date().toISOString(),snapshot.timeZone).date,days=P.workdays(snapshot).filter(d=>d>=today),busy=P.intervals(snapshot);
     if(!days.includes(selected))selected=days[0]||null;
     $("modeBadge").textContent=snapshot.source==="demo"?"Demo · Synthetic availability":calendarConnection?.handle?"Outlook · Synced local file":"Outlook extract · No live connection";
@@ -98,7 +98,12 @@
       const note=document.createElement("div");note.className="day-note";
       note.textContent=sessions.some(s=>s.status==="conflicted")?"Review focus conflict":P.hasContinuousFocus(plan,date)?"2h continuous focus secured":minutes?"Focus planned; 2h block needed":"No focus planned";
       btn.append(name,badge,caption,strip,ticks,note);
-      btn.addEventListener("click",()=>{selected=date;render();});
+      btn.addEventListener("click",()=>{
+        selected=date;render();
+        $("daySidebar").scrollTop=0;
+        // Rendering replaces the day buttons; keep keyboard focus on the selected day.
+        $("weeks").querySelector?.(`[data-date="${date}"]`)?.focus({preventScroll:true});
+      });
       group.append(btn);
     }
     if(!selected){$("detailTitle").textContent="Calendar extract ended";$("detailBody").textContent="Import a new six-week extract to plan upcoming focus time.";return;}
@@ -107,6 +112,8 @@
     const load=loads[selected],summary=document.createElement("p");summary.className="hint";
     summary.textContent=load.workingMinutes?`Meetings: ${hours(load.meetingMinutes)} / ${hours(load.workingMinutes)} (${Math.round(load.ratio*100)}%; target ≤50%). Focus target: ${hours(P.dailyFocusTarget(snapshot,selected,busy))}. Continuous 2h focus: ${P.hasContinuousFocus(plan,selected)?"planned":"not yet secured"}.` : "No working time in the 9:30 AM–5:30 PM meeting window; marked out of office.";
     details.append(summary);
+    renderDayCalendar(details);
+    const focusHeading=document.createElement("h4");focusHeading.textContent="Focus blocks";details.append(focusHeading);
     if(!sessions.length){const p=document.createElement("p");p.textContent="No focus blocks yet. Generate proposals to find available time.";details.append(p);}
     for(const s of sessions){
       const row=document.createElement("div");row.className="row";row.dataset.sessionId=s.id;
@@ -126,7 +133,6 @@
       row.append(title,controls);details.append(row);
     }
     renderBookingForm(details);
-    renderDayCalendar(details);
   }
   function renderCalendarExport(){
     const state=I.readiness(plan);
