@@ -32,15 +32,16 @@
     const truth=v=>v===true||v==="true";
     return P.validateSnapshot({schema:"focus-planner-snapshot",version:1,source:"outlook-extract",complete:true,
       capturedAt,timeZone,windowStart,windowEnd,
-      events:events.filter(e=>!truth(e?.isCancelled)&&!truth(e?.isCanceled)&&
-        !["declined"].includes(String(e?.responseStatus?.response??e?.responseType??"").toLowerCase())&&
-        String(e?.showAs??e?.status??"").toLowerCase()!=="workingelsewhere").map(e=>{
+      events:events.filter(e=>!truth(e?.isCancelled??e?.is_cancelled)&&!truth(e?.isCanceled)&&
+        !["declined"].includes(String(e?.responseStatus?.response??e?.response_status?.response??e?.responseType??"").toLowerCase())&&
+        String(e?.showAs??e?.show_as??e?.status??"").toLowerCase()!=="workingelsewhere").map(e=>{
         if(e?.type==="seriesMaster")throw Error("Export the calendar view with recurring occurrences expanded.");
-        const status=String(e?.showAs??e?.status??"unknown").toLowerCase();
+        const value=String(e?.showAs??e?.show_as??e?.status??"unknown").trim().toLowerCase();
+        const status=["ooo","outofoffice","out of office"].includes(value)?"oof":value;
         return {id:e?.id,start:stamp(e,"start"),end:stamp(e,"end"),
           status:["busy","tentative","oof","free","unknown"].includes(status)?status:"unknown",
           kind:e?.kind==="existing-focus"||/^focus time$/i.test(String(e?.subject??e?.title??"").trim())?"existing-focus":"busy",
-          allDay:truth(e?.isAllDay??e?.allDay),title:e?.subject??e?.title??""};
+          allDay:truth(e?.isAllDay??e?.is_all_day??e?.allDay),title:e?.subject??e?.title??""};
       })});
   }
   function reconcile(previous,snapshot,now=new Date().toISOString()){

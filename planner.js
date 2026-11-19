@@ -15,6 +15,7 @@
   const isDate = key => typeof key === "string" && /^\d{4}-\d{2}-\d{2}$/.test(key) && !isNaN(Date.parse(key+"T12:00:00Z")) && addDays(key,0)===key;
   const isISO = value => typeof value === "string" && /^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/.test(value) && Number.isFinite(Date.parse(value));
   const overlap = (a,b) => a.start < b.end && b.start < a.end;
+  const isTimeOff = event => event.status!=="free" && (event.status==="oof" || event.allDay && /\b(?:pto|ooo|oof|out[ -]of[ -]office|time off|vacation|holiday|shutdown|office closed|year[ -]end clos(?:ing|ure))\b/i.test(event.title||""));
   function localParts(value, timeZone) {
     const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", {timeZone,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23"}).formatToParts(new Date(value)).map(x=>[x.type,x.value]));
     return {date:`${p.year}-${p.month}-${p.day}`, minute:+p.hour*60 + +p.minute, seconds:+p.second};
@@ -48,10 +49,15 @@
     for (const event of snapshot.events) {
       if(event.status==="free"&&!includeFree)continue;
       const a=localParts(event.start,snapshot.timeZone), b=localParts(event.end,snapshot.timeZone);
+      // All-day midnight exports carry calendar dates, including UTC date-only encodings.
+      if(event.allDay && /T00:00:00(?:\.0+)?(?:Z|[+-]\d{2}:\d{2})$/.test(event.start) && /T00:00:00(?:\.0+)?(?:Z|[+-]\d{2}:\d{2})$/.test(event.end)) {
+        Object.assign(a,{date:event.start.slice(0,10),minute:0,seconds:0});
+        Object.assign(b,{date:event.end.slice(0,10),minute:0,seconds:0});
+      }
       for(let date=a.date<snapshot.windowStart?snapshot.windowStart:a.date;date<=b.date && date<snapshot.windowEnd;date=addDays(date,1)) {
         const start=date===a.date?a.minute:0;
         const end=date===b.date?b.minute+((b.seconds || new Date(event.end).getUTCMilliseconds())?1:0):1440;
-        if(end>start)(byDate[date] ||= []).push({id:event.id,start,end,kind:event.kind,status:event.status,title:event.title,allDay:event.allDay});
+        if(end>start)(byDate[date] ||= []).push({id:event.id,start,end,kind:event.kind,status:isTimeOff(event)?"oof":event.status,title:event.title,allDay:event.allDay});
       }
     }
     return byDate;
@@ -166,7 +172,7 @@
       events.push({id:"demo-"+i,start:date+"T15:00:00Z",end:date+"T16:00:00Z",status:"busy",kind:"busy",allDay:false});}
     return {schema:"focus-planner-snapshot",version:1,source:"demo",timeZone,capturedAt:now,windowStart:start,windowEnd:addDays(start,42),complete:true,events};
   }
-  return {CONFIG,ACTIVE,addDays,localParts,overlap,validateSnapshot,validatePlan,workdays,intervals,merge,gaps,createPlan,scheduled,meetingLoad,dailyFocusTarget,hasContinuousFocus,available,addBlock,extendBlock,generate,demo};
+  return {CONFIG,ACTIVE,addDays,localParts,overlap,isTimeOff,validateSnapshot,validatePlan,workdays,intervals,merge,gaps,createPlan,scheduled,meetingLoad,dailyFocusTarget,hasContinuousFocus,available,addBlock,extendBlock,generate,demo};
 });
 
 

@@ -41,7 +41,7 @@ test("refresh retains valid approvals and rejections, flags conflicts and propos
 });
 test("rolling windows keep in-range decisions with unique IDs and recognize blocks now on Outlook",()=>{
   const raw=snapshot(),plan=P.createPlan(raw,NOW);P.generate(plan,NOW);
-  const booked=plan.sessions[1];booked.status="approved";
+  const booked=plan.sessions.find(s=>s.date>raw.windowStart);booked.status="approved";
   const hhmm=m=>String(Math.floor(m/60)).padStart(2,"0")+":"+String(m%60).padStart(2,"0")+":00-05:00";
   const next={...raw,windowStart:P.addDays(raw.windowStart,1),windowEnd:P.addDays(raw.windowEnd,1),capturedAt:"2026-11-19T12:00:00Z",events:[...raw.events,{
     id:"booked",start:booked.date+"T"+hhmm(booked.start),end:booked.date+"T"+hhmm(booked.end),status:"busy",kind:"existing-focus"}]};
@@ -84,4 +84,26 @@ test("disconnect cancels an in-flight read before it can change the plan",async(
   const pending=f.connection.refresh();await new Promise(resolve=>setImmediate(resolve));
   await f.connection.disconnect();release({getFile:async()=>({size:2,lastModified:Date.parse(NOW),text:async()=>"[]"})});await pending;
   assert.equal(f.applied.length,1);assert.match(f.messages.at(-1),/disconnected/);
+});
+
+test('Outlook OOO availability aliases and all-day fields survive import and prevent focus planning',()=>{
+ for(const status of ['oof','OOO','OutOfOffice','out of office']){
+  const raw={value:[{id:'away',subject:'Shutdown',startWithTimeZone:'2026-11-19T00:00:00Z',endWithTimeZone:'2026-11-21T00:00:00Z',showAs:status,isAllDay:true}]};
+  const snapshot=L.snapshotFromJSON(raw,NOW),plan=P.createPlan(snapshot,NOW);P.generate(plan,NOW);
+  assert.equal(snapshot.events[0].status,'oof');assert.equal(P.scheduled(plan,'2026-11-19'),0);
+  assert.equal(P.meetingLoad(snapshot,'2026-11-20').workingMinutes,0);
+  assert.equal(P.meetingLoad(snapshot,'2026-11-18').workingMinutes,480);
+  assert.equal(P.meetingLoad(snapshot,'2026-11-21').workingMinutes,480);
+ }
+ const snapshot=L.snapshotFromJSON([{id:'away',subject:'Time off',start:{dateTime:'2026-11-19T00:00:00',timeZone:'UTC'},end:{dateTime:'2026-11-20T00:00:00',timeZone:'UTC'},show_as:'oof',is_all_day:true}],NOW);
+ assert.equal(snapshot.events[0].allDay,true);assert.equal(snapshot.events[0].status,'oof');
+});
+test('a newly imported all-day closure removes approved blocks from active planning without replacements on days off',()=>{
+ const raw=snapshot(),plan=P.createPlan(raw,NOW);P.generate(plan,NOW);
+ const block=plan.sessions.find(s=>s.date==='2026-11-19');block.status='approved';
+ const next={...raw,capturedAt:'2026-11-18T13:00:00Z',events:[...raw.events,{id:'closure',title:'Holiday',allDay:true,status:'tentative',kind:'busy',start:'2026-11-19T00:00:00Z',end:'2026-11-20T00:00:00Z'}]};
+ const result=L.reconcile(plan,next,NOW);
+ assert.equal(result.plan.sessions.find(s=>s.id===block.id).status,'conflicted');
+ assert.equal(P.scheduled(result.plan,block.date),0);assert.equal(P.dailyFocusTarget(next,block.date),0);
+ assert.deepEqual(P.validatePlan(result.plan),result.plan);
 });

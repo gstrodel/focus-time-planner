@@ -34,25 +34,26 @@
     $("modeBadge").textContent=snapshot.source==="demo"?"Demo · Synthetic availability":calendarConnection?.handle?"Outlook · Synced local file":"Outlook extract · No live connection";
     $("sourceStatus").textContent=`${label(snapshot.windowStart)} – ${label(P.addDays(snapshot.windowEnd,-1))}, ${snapshot.windowEnd.slice(0,4)}. Captured ${new Date(snapshot.capturedAt).toLocaleString("en-US",{timeZone:snapshot.timeZone})} (${snapshot.timeZone}). ${snapshot.events.length} calendar intervals. ${calendarConnection?.handle?"Updates follow Power Automate and OneDrive sync.":"Availability is a snapshot; changes after capture are not reflected."}`;
     $("protectCommute").checked=plan.config.protectCommute;
-    $("target").textContent=hours(days.length*120);
     const sum=status=>plan.sessions.filter(s=>s.date>=today&&s.status===status).reduce((n,s)=>n+s.end-s.start,0);
     $("reserved").textContent=hours(sum("approved"));$("pending").textContent=hours(sum("proposed"));$("existing").textContent=hours(sum("existing"));
     $("approveAll").disabled=!plan.sessions.some(s=>s.status==="proposed"&&approveable(s));
-    const covered=days.filter(d=>P.hasContinuousFocus(plan,d)).length;
     const loads=Object.fromEntries(days.map(d=>[d,P.meetingLoad(snapshot,d,busy)]));
     const workingDays=days.filter(d=>loads[d].workingMinutes>0);
+    const covered=workingDays.filter(d=>P.hasContinuousFocus(plan,d)).length;
+    $("target").textContent=hours(workingDays.length*120);
     $("meetingGoal").textContent=workingDays.filter(d=>loads[d].ratio<=P.CONFIG.maxMeetingRatio).length+"/"+workingDays.length;
-    $("focusDays").textContent=covered+"/"+days.length;
-    const shortfall=days.reduce((n,d)=>n+Math.max(0,120-P.scheduled(plan,d)),0);
+    $("focusDays").textContent=covered+"/"+workingDays.length;
+    const shortfall=workingDays.reduce((n,d)=>n+Math.max(0,120-P.scheduled(plan,d)),0);
     const conflicts=plan.sessions.filter(s=>s.status==="conflicted"&&s.date>=today).length;
-    $("coverageSummary").textContent=`${covered} of ${days.length} upcoming weekdays have 2h continuous focus planned · ${hours(shortfall)} below the daily minimum in total · ${zoneLabel}`+(conflicts?` · ${conflicts} previous blocks conflict with the updated calendar; select their days to review.`:"");
+    $("coverageSummary").textContent=`${covered} of ${workingDays.length} upcoming working days have 2h continuous focus planned · ${hours(shortfall)} below the daily minimum in total · ${days.length-workingDays.length} PTO/OOO days excluded · ${zoneLabel}`+(conflicts?` · ${conflicts} previous blocks conflict with the updated calendar; select their days to review.`:"");
 
     // Each weekday card renders a real time-scaled strip, not event-count chips.
     const stripStart=P.CONFIG.meetingStartMinute,stripEnd=P.CONFIG.endMinute;
     const timelineFor=(date,sessions)=>{
-      const base=(busy[date]||[]).filter(e=>!e.allDay && e.status!=="free");
+      if(!loads[date].workingMinutes)return [{start:stripStart,end:stripEnd,visual:"off"}];
+      const base=(busy[date]||[]).filter(e=>(!e.allDay || e.status==="oof") && e.status!=="free");
       const blocks=[
-        ...base.map(e=>({...e,visual:e.kind==="existing-focus"?"booked":"meeting"})),
+        ...base.map(e=>({...e,visual:e.status==="oof"?"off":e.kind==="existing-focus"?"booked":"meeting"})),
         ...sessions.filter(s=>P.ACTIVE.has(s.status)&&s.status!=="existing").map(s=>({...s,visual:s.status==="proposed"?"proposed":"booked"}))
       ];
       const bounds=new Set([stripStart,stripEnd]);
@@ -62,7 +63,7 @@
       for(let i=0;i<points.length-1;i++){
         const a=points[i],b=points[i+1];if(b<=a)continue;
         const active=blocks.filter(e=>e.start<b&&e.end>a);
-        const visual=active.some(e=>e.visual==="meeting")?"meeting":active.some(e=>e.visual==="booked")?"booked":active.some(e=>e.visual==="proposed")?"proposed":"free";
+        const visual=active.some(e=>e.visual==="off")?"off":active.some(e=>e.visual==="meeting")?"meeting":active.some(e=>e.visual==="booked")?"booked":active.some(e=>e.visual==="proposed")?"proposed":"free";
         const previous=parts.at(-1);
         if(previous&&previous.visual===visual)previous.end=b;else parts.push({start:a,end:b,visual});
       }
@@ -74,29 +75,30 @@
       const sessions=plan.sessions.filter(s=>s.date===date),minutes=P.scheduled(plan,date);
       const load=loads[date],pct=load.ratio===null?null:Math.round(load.ratio*100);
       const btn=document.createElement("button");btn.type="button";btn.dataset.date=date;
-      btn.className="day"+(date===selected?" selected":"");
+      btn.className="day"+(pct===null?" unavailable":"")+(date===selected?" selected":"");
       btn.setAttribute("aria-pressed",date===selected?"true":"false");
-      const status=pct===null?"No working time":pct>50?"Above 50% meeting goal":pct===50?"At 50% meeting goal":"Below 50% meeting goal";
+      const status=pct===null?"PTO/OOO; no focus planning needed":pct>50?"Above 50% meeting goal":pct===50?"At 50% meeting goal":"Below 50% meeting goal";
       btn.setAttribute("aria-label",`${label(date)}: ${pct===null?"N/A":pct+"%"} in meetings, ${hours(minutes)} of focus; ${status}`);
       const name=document.createElement("div");name.className="date";
       const number=document.createElement("span");number.className="day-number";number.textContent=String(Number(date.slice(-2)));
       const weekday=document.createElement("span");weekday.className="weekday";weekday.textContent=new Date(date+"T12:00:00Z").toLocaleDateString("en-US",{timeZone:"UTC",weekday:"short"}).toUpperCase();
-      name.append(number,weekday);
+      const month=document.createElement("span");month.className="month";month.textContent=new Date(date+"T12:00:00Z").toLocaleDateString("en-US",{timeZone:"UTC",month:"short"}).toUpperCase();
+      name.append(number,month,weekday);
       const badge=document.createElement("span");badge.className="meeting-badge "+(pct===null?"na":pct>50?"over":pct===50?"limit":"good");
-      badge.textContent=pct===null?"N/A":pct+"%";
-      const caption=document.createElement("div");caption.className="meeting-caption";caption.textContent="in meetings";
+      badge.textContent=pct===null?"PTO / OOO":pct+"%";
+      const caption=document.createElement("div");caption.className="meeting-caption";caption.textContent=pct===null?"excluded from workday targets":"in meetings";
       const strip=document.createElement("div");strip.className="day-timeline";
       strip.setAttribute("aria-label","Workday distribution, 9:30 AM to 5:30 PM");
       for(const part of timelineFor(date,sessions)){
         const segment=document.createElement("span");segment.className="segment "+part.visual;
         segment.style.flex=`${part.end-part.start} 0 0%`;
-        segment.title=`${time(part.start)} – ${time(part.end)}: ${({meeting:"Meeting or unavailable",booked:"Booked focus",proposed:"Proposed focus",free:"Available"})[part.visual]}`;
+        segment.title=`${time(part.start)} – ${time(part.end)}: ${({off:"PTO / Out of office",meeting:"Meeting or unavailable",booked:"Booked focus",proposed:"Proposed focus",free:"Available"})[part.visual]}`;
         strip.append(segment);
       }
       const ticks=document.createElement("div");ticks.className="timeline-ticks";
       for(const tick of ["9:30","12:00","2:00","4:00","5:30"]){const span=document.createElement("span");span.textContent=tick;ticks.append(span);}
       const note=document.createElement("div");note.className="day-note";
-      note.textContent=sessions.some(s=>s.status==="conflicted")?"Review focus conflict":P.hasContinuousFocus(plan,date)?"2h continuous focus secured":minutes?"Focus planned; 2h block needed":"No focus planned";
+      note.textContent=pct===null?"No focus planning needed":sessions.some(s=>s.status==="conflicted")?"Review focus conflict":P.hasContinuousFocus(plan,date)?"2h continuous focus secured":minutes?"Focus planned; 2h block needed":"No focus planned";
       btn.append(name,badge,caption,strip,ticks,note);
       btn.addEventListener("click",()=>{
         selected=date;render();
@@ -110,11 +112,11 @@
     $("detailTitle").textContent=label(selected)+" · "+zoneLabel;
     const details=$("detailBody"),sessions=plan.sessions.filter(s=>s.date===selected&&(P.ACTIVE.has(s.status)||s.status==="conflicted")).sort((a,b)=>a.start-b.start);
     const load=loads[selected],summary=document.createElement("p");summary.className="hint";
-    summary.textContent=load.workingMinutes?`Meetings: ${hours(load.meetingMinutes)} / ${hours(load.workingMinutes)} (${Math.round(load.ratio*100)}%; target ≤50%). Focus target: ${hours(P.dailyFocusTarget(snapshot,selected,busy))}. Continuous 2h focus: ${P.hasContinuousFocus(plan,selected)?"planned":"not yet secured"}.` : "No working time in the 9:30 AM–5:30 PM meeting window; marked out of office.";
+    summary.textContent=load.workingMinutes?`Meetings: ${hours(load.meetingMinutes)} / ${hours(load.workingMinutes)} (${Math.round(load.ratio*100)}%; target ≤50%). Focus target: ${hours(P.dailyFocusTarget(snapshot,selected,busy))}. Continuous 2h focus: ${P.hasContinuousFocus(plan,selected)?"planned":"not yet secured"}.` : "PTO / Out of office — no focus planning needed. Excluded from meeting and focus coverage targets.";
     details.append(summary);
     renderDayCalendar(details);
     const focusHeading=document.createElement("h4");focusHeading.textContent="Focus blocks";details.append(focusHeading);
-    if(!sessions.length){const p=document.createElement("p");p.textContent="No focus blocks yet. Generate proposals to find available time.";details.append(p);}
+    if(!sessions.length && load.workingMinutes){const p=document.createElement("p");p.textContent="No focus blocks yet. Generate proposals to find available time.";details.append(p);}
     for(const s of sessions){
       const row=document.createElement("div");row.className="row";row.dataset.sessionId=s.id;
       const title=document.createElement("div");title.className="title";title.textContent=`${time(s.start)} – ${time(s.end)}`;
@@ -132,7 +134,7 @@
       }
       row.append(title,controls);details.append(row);
     }
-    renderBookingForm(details);
+    if(load.workingMinutes)renderBookingForm(details);
   }
   function renderCalendarExport(){
     const state=I.readiness(plan);
@@ -166,8 +168,13 @@
   function renderDayCalendar(parent) {
     const heading=document.createElement("h4");heading.textContent="Day calendar";parent.append(heading);
     const note=document.createElement("p");note.className="hint";
-    note.textContent="Timed events and planned focus · All-day invites are hidden · Times in "+plan.snapshot.timeZone;
+    note.textContent="Timed events and planned focus · All-day time off shown above the grid · Times in "+plan.snapshot.timeZone;
     parent.append(note);
+    const timeOff=(P.intervals(plan.snapshot)[selected]||[]).filter(e=>e.allDay&&e.status==="oof");
+    for(const event of timeOff){
+      const banner=document.createElement("p");banner.className="time-off-banner";
+      banner.textContent="All day · PTO / Out of office · "+(event.title||"Time off");parent.append(banner);
+    }
     const legend=document.createElement("div");legend.className="legend calendar-legend";
     for(const [kind,label] of [["busy","Meeting"],["tentative","Tentative"],["oof","Out of office"],["free","Free invite"],["existing","Calendar focus"],["proposed","Proposed focus"],["approved","Approved focus"]]){
       const item=document.createElement("span"),dot=document.createElement("i");dot.className="dot cal-"+kind;item.append(dot,label);legend.append(item);

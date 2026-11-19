@@ -67,7 +67,11 @@
     .day.selected{outline:2px solid #3388e5;background:#f4f9ff}
     .day .date{display:flex;align-items:baseline;gap:9px;margin:0}
     .day .day-number{font-size:29px;font-weight:780;color:#16263d;line-height:1}
-    .day .weekday{font-size:13px;font-weight:650;color:#53647a}
+    .day .weekday,.day .month{font-size:12px;font-weight:650;color:#53647a}
+    .day .date{flex-wrap:wrap;gap:6px}
+    .day .weekday{margin-left:auto}
+    .day.unavailable{background:#f3f5f8}
+    .time-off-banner{background:#eceff3;border:1px solid #c8d0dc;border-left:4px solid #8895a6;border-radius:8px;padding:10px 12px;color:#445165;font-size:13px}
     .day .meeting-badge{align-self:flex-start;border-radius:13px;padding:3px 10px;font-size:23px;font-weight:760;line-height:1.3}
     .day .meeting-badge.good{background:#d9f3e4;color:#185c3d}
     .day .meeting-badge.limit{background:#e9edf2;color:#344356}
@@ -80,6 +84,7 @@
     .day .segment.booked{background:#40ae68}
     .day .segment.proposed{background:#a985e8}
     .day .segment.free{background:#e9edf3}
+    .coverage-legend .off,.day .segment.off{background:repeating-linear-gradient(135deg,#c5ccd7,#c5ccd7 5px,#e1e5eb 5px,#e1e5eb 10px)}
     .day .timeline-ticks{display:flex;justify-content:space-between;color:#68788d;font-size:10px;font-variant-numeric:tabular-nums;gap:2px}
     .day .day-note{font-size:11px;color:#607086;min-height:14px}
     @media(max-width:1000px){.week{grid-template-columns:repeat(3,minmax(0,1fr))}}
@@ -163,7 +168,7 @@
     <div class="card metric"><span>Days with 2h continuous focus planned</span><strong id="focusDays">0</strong></div>
   </section>
   <div class="calendar-workspace">
-    <section class="card coverage-panel" aria-labelledby="coverageTitle"><div class="panelhead"><h3 id="coverageTitle">Calendar coverage</h3><div class="coverage-legend" aria-label="Timeline legend"><span><i class="meetings"></i>Meetings</span><span><i class="booked"></i>Booked focus</span><span><i class="suggested"></i>Proposed focus</span><span><i class="free"></i>Available</span></div></div>
+    <section class="card coverage-panel" aria-labelledby="coverageTitle"><div class="panelhead"><h3 id="coverageTitle">Calendar coverage</h3><div class="coverage-legend" aria-label="Timeline legend"><span><i class="meetings"></i>Meetings</span><span><i class="booked"></i>Booked focus</span><span><i class="suggested"></i>Proposed focus</span><span><i class="free"></i>Available</span><span><i class="off"></i>PTO / OOO</span></div></div>
       <p class="hint" id="coverageSummary"></p><div class="weeks" id="weeks"></div>
     </section>
     <aside class="card day-sidebar" id="daySidebar" aria-labelledby="detailTitle" tabindex="-1">
