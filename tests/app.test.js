@@ -107,3 +107,25 @@ test('connected folder refresh updates app decisions and exposes conflicts witho
  await app.nodes.disconnectCalendar.click();assert.equal(app.nodes.refreshCalendar.disabled,true);assert.ok(app.state());
 });
 
+
+test('coverage cards show month labels, exclude days off from targets and explain all-day time off in the sidebar',async()=>{
+ const raw=P.demo(),date=P.workdays(raw)[0],end=P.addDays(date,1);
+ raw.events=[{id:'away',start:date+'T00:00:00Z',end:end+'T00:00:00Z',status:'tentative',kind:'busy',allDay:true,title:'Office Closed - Holiday'}];
+ const app=boot();await app.import(raw);
+ const cards=descendants(app.nodes.weeks).filter(e=>e.dataset.date);
+ assert.equal(cards.length,30);
+ for(const card of cards){
+  const month=descendants(card).find(e=>e.className==='month');
+  assert.equal(month.textContent,new Date(card.dataset.date+'T12:00:00Z').toLocaleDateString('en-US',{timeZone:'UTC',month:'short'}).toUpperCase());
+ }
+ const off=cards.find(e=>e.dataset.date===date);off.click();
+ assert.ok(descendants(off).some(e=>e.textContent==='PTO / OOO'));
+ assert.ok(descendants(off).some(e=>e.textContent==='No focus planning needed'));
+ assert.ok(descendants(off).some(e=>e.className==='segment off'));
+ assert.equal(app.nodes.target.textContent,'58h');assert.equal(app.nodes.focusDays.textContent,'29/29');
+ assert.equal(app.nodes.meetingGoal.textContent,'29/29');assert.match(app.nodes.coverageSummary.textContent,/1 PTO\/OOO days excluded/);
+ const details=descendants(app.nodes.detailBody);
+ assert.ok(details.some(e=>e.className==='time-off-banner'&&e.textContent.includes('Office Closed - Holiday')));
+ assert.equal(details.some(e=>e.textContent==='Add more focus time'),false);
+ assert.equal(app.state().sessions.some(s=>s.date===date&&P.ACTIVE.has(s.status)),false);
+});

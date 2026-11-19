@@ -43,7 +43,10 @@ test("42-day extract: weekday plans meet targets, stay in work hours and never o
 });
 test("continuous afternoon block takes priority over fragmented morning gaps",()=>{
  const plan=P.createPlan(snapshot([event("meeting","2026-11-18T15:30:00Z","2026-11-18T17:00:00Z")]),NOW);
- P.generate(plan,NOW);assert.equal(P.scheduled(plan,"2026-11-18"),240);assert.deepEqual(plan.sessions.filter(s=>s.date==="2026-11-18").map(s=>s.end-s.start),[120,120]);
+ P.generate(plan,NOW);assert.equal(P.scheduled(plan,"2026-11-18"),240);
+ const blocks=plan.sessions.filter(s=>s.date==="2026-11-18");
+ assert.equal(blocks[0].end-blocks[0].start,120);assert.ok(blocks[0].start>=720);
+ assert.ok(blocks.every(s=>s.end-s.start>=60));
 });
 test("existing focus counts once, overlapping meetings take priority, no calendar duplication",()=>{
  const plan=P.createPlan(snapshot([event("f","2026-11-18T14:00:00Z","2026-11-18T16:00:00Z","existing-focus"),event("f2","2026-11-18T14:00:00Z","2026-11-18T16:00:00Z","existing-focus"),event("m","2026-11-18T15:00:00Z","2026-11-18T16:00:00Z")]),NOW);
@@ -117,4 +120,37 @@ test("existing focus contributes to four-hour target without duplication",()=>{
  assert.equal(P.scheduled(plan,"2026-11-18"),120);
  P.generate(plan,NOW);assert.equal(P.scheduled(plan,"2026-11-18"),240);
  assert.equal(plan.sessions.filter(s=>s.date==="2026-11-18"&&s.status==="proposed").reduce((n,s)=>n+s.end-s.start,0),120);
+});
+
+test('December 29 shutdown and year-end closure exclude all covered days, with exclusive all-day ends',()=>{
+ const raw={...snapshot(),windowStart:'2026-12-01',windowEnd:'2027-01-12',events:[
+  {...event('closure','2026-12-25T00:00:00Z','2027-01-01T00:00:00Z','busy','tentative'),allDay:true,title:'Office Closed - Year-End Closing'},
+  {...event('shutdown','2026-12-28T00:00:00Z','2027-01-02T00:00:00Z','busy','oof'),allDay:true,title:'Shutdown'},
+  event('meeting1','2026-12-29T16:05:00Z','2026-12-29T17:00:00Z'),
+  event('meeting2','2026-12-29T18:05:00Z','2026-12-29T19:00:00Z'),
+  event('free','2026-12-29T14:35:00Z','2026-12-29T15:00:00Z','busy','free')
+ ]};
+ assert.deepEqual(P.meetingLoad(raw,'2026-12-29'),{workingMinutes:0,meetingMinutes:0,ratio:null});
+ const plan=P.createPlan(raw,NOW);P.generate(plan,NOW);
+ for(const date of ['2026-12-25','2026-12-28','2026-12-29','2026-12-30','2026-12-31','2027-01-01']){
+  assert.equal(P.dailyFocusTarget(raw,date),0);assert.deepEqual(P.available(plan,date,NOW),[]);assert.equal(P.scheduled(plan,date),0);
+  assert.throws(()=>P.addBlock(plan,date,540,660,NOW));
+ }
+ assert.equal(P.meetingLoad(raw,'2026-12-24').workingMinutes,480);
+ assert.equal(P.meetingLoad(raw,'2027-01-02').workingMinutes,480);
+ const meetings={...raw,events:raw.events.slice(2)};
+ assert.equal(P.meetingLoad(meetings,'2026-12-29').meetingMinutes,110);
+ assert.equal(P.meetingLoad(meetings,'2026-12-29').ratio,110/480);
+ const closureOnly={...raw,events:raw.events.slice(0,1)};
+ assert.equal(P.meetingLoad(closureOnly,'2026-12-29').workingMinutes,0);
+ assert.equal(P.meetingLoad(closureOnly,'2027-01-01').workingMinutes,480);
+});
+test('all-day time-off titles require non-free availability and timed title mentions remain meetings',()=>{
+ for(const title of ['PTO','OOO','Out of Office','Vacation','Holiday','Shutdown','Office Closed','Year-End Closing']){
+  const away={...event('away','2026-11-19T00:00:00-05:00','2026-11-20T00:00:00-05:00'),allDay:true,title};
+  assert.equal(P.meetingLoad(snapshot([away]),'2026-11-19').workingMinutes,0);
+  assert.equal(P.meetingLoad(snapshot([{...away,status:'free'}]),'2026-11-19').workingMinutes,480);
+ }
+ const timed={...event('review','2026-11-19T15:00:00Z','2026-11-19T16:00:00Z'),title:'Holiday planning meeting'};
+ assert.equal(P.meetingLoad(snapshot([timed]),'2026-11-19').meetingMinutes,60);
 });
