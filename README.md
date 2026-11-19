@@ -2,6 +2,174 @@
 
 An offline, browser-based six-week focus planner using an Outlook calendar **extract**. No Microsoft app registration or sign-in is needed for this release. Import your extract, review proposals, approve or reject them, and export an `.ics` file to import into Outlook. Approvals and file exports stay local until you manually import the file into Outlook.
 
+## Recreate the Power Automate calendar export
+
+Build and test this flow before connecting the app to your calendar folder. It refreshes a complete, rolling **42-calendar-day** extract every **30 minutes**, starting at midnight today in Eastern Time. Power Automate reads Outlook and writes a JSON file to OneDrive for Business; the OneDrive desktop client syncs it to Windows, where Focus Planner reads it.
+
+This is a reproducible design based on the app's current import contract and Gordon's existing schedule and destination. It is not an export or inspection of the deployed flow; its action names and internal structure may differ. The instructions below use one primary work calendar. Holidays/PTO must exist in that calendar to be included; separate holiday or shared calendars are not automatically combined.
+
+### 1. Prepare the connections and output file
+
+You need access to [Power Automate](https://make.powerautomate.com/) and working **Office 365 Outlook** and **OneDrive for Business** connections using your work account. These are standard connectors; this design does not require a custom Entra app registration, HTTP action, desktop flow, or local gateway. Your organization's licensing and connector policies still apply.
+
+In OneDrive for Business, create a folder named `SuperlistSync`. For a new installation, create a UTF-8 text file named `calendar_events.json` inside it with `{}` as its initial content; ensure the extension is `.json`, not `.json.txt`. This is only a placeholder and cannot be imported until the first successful flow run replaces it. If the file already contains a working extract, keep it.
+
+| Location | Value |
+| --- | --- |
+| Cloud folder, relative to your OneDrive root | `/SuperlistSync` |
+| Output filename, reused on every run | `calendar_events.json` |
+| Gordon's synced Windows file | `C:\Users\UBC3554\OneDrive - Takeda\SuperlistSync\calendar_events.json` |
+
+Use the cloud file picker in Power Automate. The Windows `C:\...` path belongs only in the local setup; a cloud flow cannot write to that path directly. Other users should use their own synced OneDrive location. Keep OneDrive running and mark the file **Always keep on this device**.
+
+### 2. Create the scheduled flow
+
+Choose **Create → Scheduled cloud flow**, name it `Focus Planner - Export calendar`, and repeat every **30 minutes**. On the **Recurrence** trigger's settings, enable **Concurrency control** with degree **1** to prevent overlapping runs from overwriting each other. Designer labels may vary.
+
+Rename each action to the exact name shown below **before** entering expressions. Add expressions using the designer's **Expression / fx** editor, without a leading `@` or `@{...}`. Names inside `outputs(...)` and `body(...)` refer to actions; names inside `variables(...)` refer to variables.
+
+### 3. Freeze the date window for this run
+
+Add five **Data Operation → Compose** actions in this order. Freezing the values avoids mixing two different days if a run crosses midnight.
+
+| Action name | Inputs (Expression) |
+| --- | --- |
+| `CapturedAt` | `utcNow()` |
+| `WindowStart` | `convertTimeZone(outputs('CapturedAt'), 'UTC', 'Eastern Standard Time', 'yyyy-MM-dd')` |
+| `WindowEnd` | `addDays(concat(outputs('WindowStart'), 'T00:00:00'), 42, 'yyyy-MM-dd')` |
+| `QueryStartUtc` | `convertToUtc(concat(outputs('WindowStart'), 'T00:00:00'), 'Eastern Standard Time')` |
+| `QueryEndUtc` | `convertToUtc(concat(outputs('WindowEnd'), 'T00:00:00'), 'Eastern Standard Time')` |
+
+`WindowEnd` is exclusive. For example, a run on November 19, 2026 covers November 19 through December 30, with an end boundary of December 31. Convert both local midnights independently to UTC: adding 42 × 24 hours to the UTC start can shift the end boundary across daylight-saving changes. Power Automate uses the Windows zone name `Eastern Standard Time` for both EST and EDT; the JSON uses `America/New_York`, which the app understands.
+
+### 4. Retrieve all pages of the calendar view
+
+Use **Office 365 Outlook → Get calendar view of events (V3)**, which expands recurring meetings into occurrences. **Get events (V4)** is not a substitute for an expanded calendar view. Microsoft documents a maximum of **256 events per request** and recommends `Top Count` / `Skip Count` for additional pages. This design uses an explicit loop rather than relying on an automatic pagination setting.
+
+First add these **Initialize variable** actions at the top level, outside any loop:
+
+| Variable name | Type | Initial value |
+| --- | --- | --- |
+| `AllEvents` | Array | `[]` (empty array) |
+| `SkipCount` | Integer | `0` |
+| `PageCount` | Integer | `1` |
+
+Add a **Control → Do until** action named `FetchAllPages`. Set its stopping expression to `equals(variables('PageCount'), 0)`. Under its limits, set **Count** to `50` and **Timeout** to `PT20M`. An empty final page proves the loop reached the end, including when the total is an exact multiple of 256.
+
+Inside `FetchAllPages`, add the following actions in order:
+
+1. **Get calendar view of events (V3)**, renamed `GetCalendarPage`, with these settings:
+
+   | Field | Value |
+   | --- | --- |
+   | Calendar Id | Select your primary work calendar, usually **Calendar** |
+   | Start Time | Expression: `outputs('QueryStartUtc')` |
+   | End Time | Expression: `outputs('QueryEndUtc')` |
+   | Top Count | `256` |
+   | Skip Count | Expression: `variables('SkipCount')` |
+   | Order By | `start/dateTime asc` |
+   | Filter Query / Search | Leave empty |
+
+   Keep automatic pagination off if the designer exposes it, so `SkipCount` controls every request. Use the same calendar, bounds, and ordering for every iteration. Do not filter to work hours, weekdays, busy-only events, or meeting subjects: all-day PTO, existing focus, exceptions, and events overlapping the window boundaries must remain available to the importer.
+
+2. **Set variable** `PageCount` to the expression `length(body('GetCalendarPage')?['value'])`. A missing event array must fail the run; do not replace a missing `value` with an empty array, which would incorrectly declare completion.
+3. **Data Operation → Select**, renamed `SelectPage`, with **From** set to `body('GetCalendarPage')?['value']`. In its key/value map, type the keys as plain text and enter each value through **Expression**:
+
+   | JSON key | Value expression |
+   | --- | --- |
+   | `id` | `item()?['id']` |
+   | `subject` | `coalesce(item()?['subject'], '')` |
+   | `startWithTimeZone` | `item()?['startWithTimeZone']` |
+   | `endWithTimeZone` | `item()?['endWithTimeZone']` |
+   | `showAs` | `coalesce(item()?['showAs'], 'unknown')` |
+   | `isAllDay` | `coalesce(item()?['isAllDay'], false)` |
+   | `isCancelled` | `coalesce(item()?['isCancelled'], false)` |
+   | `responseType` | `coalesce(item()?['responseType'], 'notResponded')` |
+
+   Preserve the timestamps with their explicit `Z` or numeric offset. Do not substitute the timezone-free `start` / `end` fields or append a guessed offset. The Select map omits descriptions, organizer addresses, attendee lists, and meeting links. The app uses the subject `Focus Time` (case insensitive) to recognize existing focus reservations, and uses availability/response fields to handle free, cancelled, declined, and working-elsewhere events. Keep all-day events; hiding them in the day view is the app's responsibility.
+
+4. **Control → Apply to each**, renamed `AppendPage`, over `body('SelectPage')`. Keep concurrency off (sequential). Inside it, add **Append to array variable**: variable `AllEvents`, value expression `item()`. Append each object individually; appending the entire Select result would create nested arrays.
+5. **Increment variable** `SkipCount` by the expression `variables('PageCount')`. Use the returned count, so a shorter nonempty page still leads to another request.
+
+After `FetchAllPages`, add a **Condition** with this expression:
+
+```text
+and(equals(variables('PageCount'), 0), lessOrEquals(length(variables('AllEvents')), 10000))
+```
+
+In the **If no** branch, use **Terminate** with status **Failed** and a message such as `Calendar retrieval incomplete or over the app's 10000-event limit; previous export retained.` Put **all remaining actions below inside the If yes branch**. Leave their run-after settings at **is successful**. A failed request, loop timeout, exhausted loop count, or failed guard must never publish a partial file with `complete: true`.
+
+Paging is not a transaction against a frozen Outlook calendar. If meetings change during retrieval, pages can shift. Run again if counts or dates look wrong; the importer rejects duplicate IDs rather than accepting them silently. Do not change page ordering or discard a next-link-bearing first response and label it complete.
+
+### 5. Build and replace the JSON file
+
+In the successful branch, add **Compose** named `CalendarExport`. Paste this complete expression into its **Expression** editor:
+
+```text
+json(concat(
+  '{"capturedAt":"', outputs('CapturedAt'),
+  '","timeZone":"America/New_York","windowStart":"', outputs('WindowStart'),
+  '","windowEnd":"', outputs('WindowEnd'),
+  '","complete":true,"events":', string(variables('AllEvents')), '}'
+))
+```
+
+The result is an object containing an **array**, not a quoted JSON document. Deliberately omit `schema`: this is the raw Outlook-event wrapper supported by `local-calendar.js`. Adding `schema: "focus-planner-snapshot"` would select a different import format requiring normalized event fields described in **Extract format** below.
+
+Add **OneDrive for Business → Update file**, select the existing `/SuperlistSync/calendar_events.json`, and set **File Content** to the expression `string(outputs('CalendarExport'))`. Reuse this same file each run; do not generate timestamped filenames or append events to yesterday's export. If the selected file is later deleted/recreated, reselect it in this action because its OneDrive identifier can change. Keep the existing export untouched whenever retrieval fails.
+
+This synthetic example shows the resulting shape; the real array contains every retrieved event:
+
+```json
+{
+  "capturedAt": "2026-11-19T14:00:00Z",
+  "timeZone": "America/New_York",
+  "windowStart": "2026-11-19",
+  "windowEnd": "2026-12-31",
+  "complete": true,
+  "events": [
+    {
+      "id": "synthetic-occurrence-1",
+      "subject": "Focus Time",
+      "startWithTimeZone": "2026-11-19T10:00:00-05:00",
+      "endWithTimeZone": "2026-11-19T12:00:00-05:00",
+      "showAs": "busy",
+      "isAllDay": false,
+      "isCancelled": false,
+      "responseType": "organizer"
+    }
+  ]
+}
+```
+
+### 6. Test the flow before using the planner
+
+Save the flow, choose **Test → Manually**, and inspect its run history and the synced file:
+
+- Confirm both connections use the intended account/calendar, each action succeeds, and the output is valid JSON under the app's 5 MB file limit. `events` must be an array of objects, including `[]` when the calendar is genuinely empty.
+- Confirm `windowStart` is today's Eastern date, `windowEnd` is exactly 42 calendar days later, and UTC query boundaries correspond to those local midnights. Include a window crossing a daylight-saving change when validating the conversions.
+- Check a recurring meeting near the end of week six, a moved/cancelled recurrence exception, an all-day PTO item, and an existing `Focus Time` reservation against Outlook. Each retained occurrence must have its own unique `id` and offset-bearing start/end timestamps. Free all-day items should remain free, not become PTO.
+- For a calendar with more than 256 events, inspect successive `SkipCount` values and verify events beyond the first page are present. Even for fewer events, expect one nonempty page followed by an empty page. Confirm the final `PageCount` is zero and the sum of page lengths matches `AllEvents`.
+- In a temporary test copy of the flow, force a calendar-action failure or lower the loop Count so the guard cannot pass. Verify the run fails and the previous output file is unchanged. Restore the settings before enabling the recurring flow.
+- Verify the file arrives in the local OneDrive folder. Then follow **Test it** below and use **Connect calendar folder**. The app polls locally every minute; **Refresh now** does not trigger Power Automate. A calendar edit appears after the next flow run, OneDrive sync, and app refresh.
+
+| Symptom | Check |
+| --- | --- |
+| Only the first portion of six weeks appears | Correct calendar view action, page loop, Skip Count, and completion guard |
+| App reports missing offsets or missing times | Select mapping uses `startWithTimeZone` / `endWithTimeZone`; inspect actual action output |
+| Duplicate event ID error | Retry the full export after calendar activity settles; verify recurrence expansion and page settings |
+| Output is a quoted string or nested arrays | Use the `CalendarExport` expression and append each Select object individually |
+| File does not update locally | Flow run history, OneDrive connection/file selection, desktop sync, and local availability |
+| File is over 75 minutes old | Failed/disabled flow, expired connection, or stalled OneDrive sync |
+
+The flow only reads Outlook; booking still follows the app's approval and `.ics` import process. Keep real extracts, run-history payloads, and connection secrets out of this repository.
+
+### Can the flow be stored as code?
+
+Yes. Power Automate represents cloud flows as JSON definitions. A non-solution flow can be exported as a **Package (.zip)**; solution-aware flows are exported with their solution and can be versioned with Power Platform tooling. An actual export is the best starting point for documenting or packaging the deployed flow exactly. This README provides manual recreation instructions, not an importable package. Imported flows still need the appropriate connections, calendar/file selections, environment configuration, and permissions; a bare JSON snippet is not a ready-to-run authenticated integration.
+
+Microsoft references: [Outlook connector and paging limits](https://learn.microsoft.com/en-us/connectors/office365/), [OneDrive for Business connector](https://learn.microsoft.com/en-us/connectors/onedriveforbusiness/), [workflow expressions](https://learn.microsoft.com/en-us/azure/logic-apps/expression-functions-reference), [Power Automate timezone conversion](https://learn.microsoft.com/en-us/power-automate/convert-time-zone), [export/import a non-solution flow](https://learn.microsoft.com/en-us/power-automate/export-import-flow-non-solution), and [export solution-aware flows](https://learn.microsoft.com/en-us/power-automate/export-flow-solution).
+
 ## Test it
 
 1. Download the app files together (`index.html`, `planner.js`, `local-calendar.js`, `ical.js`, `app.js`). Open `index.html` in Edge or Chrome, or serve the folder with `py -m http.server 8000` and open `http://localhost:8000/`.
