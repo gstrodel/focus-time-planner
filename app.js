@@ -28,7 +28,7 @@
     renderCalendarExport();
     for(const id of ["generate","save","export","approveAll","protectCommute","reset"])$(id).disabled=!loaded;
     $("weeks").replaceChildren();$("detailBody").replaceChildren();
-    if(!loaded){$("modeBadge").textContent="Calendar extract · Offline prototype";$("sourceStatus").textContent="Import a six-week calendar extract or a saved plan. No sign-in needed.";$("weeks").textContent="Your six-week plan will appear here after import.";$("detailTitle").textContent="Select a day";$("detailBody").textContent="Import your calendar or try demo data, then select a day to see its calendar and focus time.";return;}
+    if(!loaded){$("modeBadge").textContent="Calendar extract · Offline prototype";$("sourceStatus").textContent="Import a six-week calendar extract or a saved plan. No sign-in needed.";$("weeks").textContent="Your six-week plan will appear here after import.";$("detailTitle").textContent="Select a day";$("detailBody").textContent="Import your calendar, then select a day to see its calendar and focus time.";return;}
     const snapshot=plan.snapshot,zoneLabel=snapshot.timeZone==="America/New_York"?"Eastern Time":snapshot.timeZone,today=P.localParts(new Date().toISOString(),snapshot.timeZone).date,days=P.workdays(snapshot).filter(d=>d>=today),busy=P.intervals(snapshot);
     if(!days.includes(selected))selected=days[0]||null;
     $("modeBadge").textContent=snapshot.source==="demo"?"Demo · Synthetic availability":calendarConnection?.handle?"Outlook · Synced local file":"Outlook extract · No live connection";
@@ -86,7 +86,6 @@
       name.append(number,month,weekday);
       const badge=document.createElement("span");badge.className="meeting-badge "+(pct===null?"na":pct>50?"over":pct===50?"limit":"good");
       badge.textContent=pct===null?"PTO / OOO":pct+"%";
-      const caption=document.createElement("div");caption.className="meeting-caption";caption.textContent=pct===null?"excluded from workday targets":"in meetings";
       const strip=document.createElement("div");strip.className="day-timeline";
       strip.setAttribute("aria-label","Workday distribution, 9:30 AM to 5:30 PM");
       for(const part of timelineFor(date,sessions)){
@@ -100,7 +99,10 @@
       const note=document.createElement("div");note.className="day-note";
       note.textContent=pct===null?"No focus planning needed":sessions.some(s=>s.status==="conflicted")?"Review focus conflict":P.hasContinuousFocus(plan,date)?"✅ Focus Time Secured":minutes?"Focus planned; 2h block needed":"No focus planned";
       if(note.textContent==="No focus planned")note.className+=" no-focus";
-      btn.append(name,badge,caption,strip,ticks,note);
+      if(note.textContent==="✅ Focus Time Secured")note.className+=" focus-secured";
+      btn.append(name,badge);
+      if(pct!==null){const caption=document.createElement("div");caption.className="meeting-caption";caption.textContent="in meetings";btn.append(caption);}
+      btn.append(strip,ticks,note);
       btn.addEventListener("click",()=>{
         selected=date;render();
         $("daySidebar").scrollTop=0;
@@ -141,6 +143,7 @@
     const state=I.readiness(plan);
     $("exportIcs").disabled=exportingCalendar||!state.ready;
     $("exportIcs").textContent=exportingCalendar?"Saving .ics…":"Export to Outlook (.ics)";
+    $("icsStatus").className="hint"+(state.needsReview?" export-warning":"");
     $("icsStatus").textContent=state.message+(typeof window.showSaveFilePicker==="function"?
       " Choose where to save when prompted.":" This browser uses downloads. To choose a location, enable ‘Ask where to save each file’ in browser settings or open in Edge or Chrome.");
   }
@@ -259,14 +262,13 @@
     finally{event.target.value="";}
   });
   $("preferencesButton").addEventListener("click",()=>$("preferencesDialog").showModal());
-  $("generate").addEventListener("click",()=>{const n=P.generate(plan);persist(n?`Added ${n} proposed blocks. Approvals save locally; Outlook is unchanged.`:"No additional blocks fit the target and minimum length. Existing decisions were kept.");render();});
+  $("generate").addEventListener("click",()=>{const n=P.generate(plan);if(persist(n?`Added ${n} proposed blocks. Approvals save locally; Outlook is unchanged.`:"")&&!n)say("");render();});
   $("approveAll").addEventListener("click",()=>{let n=0;for(const s of plan.sessions)if(s.status==="proposed"&&approveable(s)){s.status="approved";n++;}persist(`Approved ${n} blocks locally. They are not reserved in Outlook.`);render();});
   $("save").addEventListener("click",()=>persist());
   $("export").addEventListener("click",()=>{
     persist();const url=URL.createObjectURL(new Blob([JSON.stringify(plan,null,2)],{type:"application/json"}));
     const a=document.createElement("a");a.href=url;a.download=`focus-plan-${plan.snapshot.windowStart}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
   });
-  $("demoMode").addEventListener("click",async()=>{if(plan&&!window.confirm("Replace the current plan with synthetic demo data?"))return;if(calendarConnection)await calendarConnection.disconnect();open(P.demo(),true);say("Demo loaded. This is synthetic data.");});
   $("reset").addEventListener("click",()=>{if(!plan||!window.confirm("Clear local planning decisions and regenerate from the same calendar extract?"))return;const next=P.createPlan(plan.snapshot,new Date().toISOString(),plan.config);P.generate(next);plan=next;persist();render();});
   $("protectCommute").addEventListener("change",event=>{
     const protect=event.target.checked;
@@ -310,3 +312,4 @@
     }
   }
 })();
+

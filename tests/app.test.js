@@ -36,14 +36,17 @@ test('legacy outcome statuses migrate to planning decisions without outcome cont
  const plan=P.createPlan(P.demo());P.generate(plan);plan.sessions[0].status='completed';plan.sessions[1].status='rejected';plan.savedAt=new Date().toISOString();const app=boot();await app.import(plan);assert.equal(app.state().sessions[0].status,'approved');assert.equal(app.state().sessions[1].status,'rejected');assert.equal(app.nodes.insights,undefined);
 });
 const descendants=node=>[node,...node.children.filter(e=>typeof e==='object').flatMap(descendants)];
-test('No focus planned is red, while focus and PTO notes keep their normal styling',()=>{
+test('coverage notes distinguish missing focus, secured focus and full-day PTO',()=>{
  const raw=P.demo(),dates=P.workdays(raw),[empty,focused,off]=dates.slice(1,4);
  raw.events=[{id:'away',start:off+'T00:00:00Z',end:P.addDays(off,1)+'T00:00:00Z',status:'oof',kind:'busy',allDay:true,title:'PTO',isOrganizer:true}];
  const plan=P.createPlan(raw);P.addBlock(plan,focused,600,720);plan.savedAt=new Date().toISOString();
  const app=boot(new Map([['focus-planner-v0.4',JSON.stringify(plan)]]));
  const note=date=>descendants(descendants(app.nodes.weeks).find(e=>e.dataset.date===date)).find(e=>e.className?.split(' ').includes('day-note'));
  assert.equal(note(empty).textContent,'No focus planned');assert.equal(note(empty).className,'day-note no-focus');
- assert.equal(note(focused).className,'day-note');assert.equal(note(off).className,'day-note');
+ assert.equal(note(focused).textContent,'✅ Focus Time Secured');assert.equal(note(focused).className,'day-note focus-secured');assert.equal(note(off).className,'day-note');
+ const card=date=>descendants(app.nodes.weeks).find(e=>e.dataset.date===date);
+ assert.equal(descendants(card(off)).some(e=>e.className==='meeting-caption'),false);
+ assert.equal(descendants(card(empty)).find(e=>e.className==='meeting-caption').textContent,'in meetings');
 });
 test('teammate PTO does not appear in coverage, all-day banners or the timed day calendar',async()=>{
  const raw=P.demo(),date=P.workdays(raw)[0],end=P.addDays(date,1);
@@ -58,8 +61,9 @@ test('teammate PTO does not appear in coverage, all-day banners or the timed day
 test('calendar export waits for decisions, prompts for location, and preserves local approvals',async()=>{
  let options,written,closed=false;
  const app=boot(new Map(),null,null,{showSaveFilePicker:async opts=>{options=opts;return {createWritable:async()=>({write:async blob=>{written=await blob.text();},close:async()=>{closed=true;}})};}});
- assert.equal(app.nodes.exportIcs.disabled,true);await app.import(P.demo());assert.equal(app.nodes.exportIcs.disabled,true);
- app.nodes.approveAll.click();assert.equal(app.nodes.exportIcs.disabled,false);const before=JSON.stringify(app.state());
+ assert.equal(app.nodes.exportIcs.disabled,true);assert.equal(app.nodes.icsStatus.className,'hint');
+ await app.import(P.demo());assert.equal(app.nodes.exportIcs.disabled,true);assert.equal(app.nodes.icsStatus.className,'hint export-warning');
+ app.nodes.approveAll.click();assert.equal(app.nodes.exportIcs.disabled,false);assert.equal(app.nodes.icsStatus.className,'hint');const before=JSON.stringify(app.state());
  await app.nodes.exportIcs.click();assert.equal(closed,true);assert.equal(options.id,'focus-time-ics');assert.ok(options.suggestedName.endsWith('.ics'));
  assert.deepEqual(Array.from(options.types[0].accept['text/calendar']),['.ics']);assert.match(written,/BEGIN:VCALENDAR/);
  assert.equal(JSON.stringify(app.state()),before);assert.match(app.nodes.notice.textContent,/Saved .*focus blocks/);assert.equal(app.downloads.length,0);
@@ -67,7 +71,7 @@ test('calendar export waits for decisions, prompts for location, and preserves l
  const state=app.state(),extendable=state.sessions.find(s=>s.status==='approved'&&P.available(state,s.date,undefined,s.id).some(g=>g.start<=s.start&&g.end>=s.end+30));
  assert.ok(extendable);descendants(app.nodes.weeks).find(e=>e.dataset.date===extendable.date).click();
  const extend=descendants(app.nodes.detailBody).find(e=>e.textContent==='Extend 30 min'&&!e.disabled);
- assert.ok(extend);extend.click();assert.equal(app.nodes.exportIcs.disabled,true);
+ assert.ok(extend);extend.click();assert.equal(app.nodes.exportIcs.disabled,true);assert.equal(app.nodes.icsStatus.className,'hint export-warning');
 });
 test('canceling or failing calendar save reports the result and keeps export available',async()=>{
  for(const failure of ['cancel','write','close']){
@@ -148,3 +152,4 @@ test('coverage cards show month labels, exclude days off from targets and explai
  assert.equal(details.some(e=>e.textContent==='Add more focus time'),false);
  assert.equal(app.state().sessions.some(s=>s.date===date&&P.ACTIVE.has(s.status)),false);
 });
+
