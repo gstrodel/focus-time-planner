@@ -244,6 +244,7 @@
     }catch(error){say("Import failed: "+error.message);}
     finally{event.target.value="";}
   });
+  $("preferencesButton").addEventListener("click",()=>$("preferencesDialog").showModal());
   $("generate").addEventListener("click",()=>{const n=P.generate(plan);persist(n?`Added ${n} proposed blocks. Approvals save locally; Outlook is unchanged.`:"No additional blocks fit the target and minimum length. Existing decisions were kept.");render();});
   $("approveAll").addEventListener("click",()=>{let n=0;for(const s of plan.sessions)if(s.status==="proposed"&&approveable(s)){s.status="approved";n++;}persist(`Approved ${n} blocks locally. They are not reserved in Outlook.`);render();});
   $("save").addEventListener("click",()=>persist());
@@ -295,6 +296,3 @@
     }
   }
 })();
-
-
-
