@@ -45,8 +45,15 @@
       };
       return {id:e.id,start:e.start,end:e.end,status:e.status,kind:e.kind,allDay:!!e.allDay,
         title:text(e.title,1000),...(typeof e.isOrganizer==="boolean"?{isOrganizer:e.isOrganizer}:{})};
-    });
+    }).filter(event=>event.allDay || overlapsCalendarHours(event));
     return {schema:input.schema,version:1,source:input.source==="demo"?"demo":"outlook-extract",timeZone:input.timeZone,capturedAt:input.capturedAt,windowStart:input.windowStart,windowEnd:input.windowEnd,complete:true,events};
+  }
+  function overlapsCalendarHours(event) {
+    // Import visibility is 6 AM–10 PM Eastern, separate from focus-planning hours.
+    const a=localParts(event.start,"America/New_York"),b=localParts(event.end,"America/New_York");
+    const end=b.minute+((b.seconds || new Date(event.end).getUTCMilliseconds())?1:0);
+    if(a.date===b.date)return a.minute<1320 && end>360;
+    return a.minute<1320 || end>360 || addDays(a.date,1)<b.date;
   }
   function workdays(snapshot) {
     return Array.from({length:42},(_,i)=>addDays(snapshot.windowStart,i)).filter(d=>![0,6].includes(new Date(d+"T12:00:00Z").getUTCDay()));
@@ -54,6 +61,7 @@
   function intervals(snapshot, {includeFree=false}={}) {
     const byDate = {};
     for (const event of snapshot.events) {
+      if(!event.allDay && !overlapsCalendarHours(event))continue;
       if(isOtherPersonTimeOff(event))continue;
       // Informational all-day entries do not consume work time or reserve focus.
       if(event.allDay && !isTimeOff(event))continue;

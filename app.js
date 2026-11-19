@@ -28,11 +28,10 @@
     renderCalendarExport();
     for(const id of ["generate","save","export","approveAll","protectCommute","reset"])$(id).disabled=!loaded;
     $("weeks").replaceChildren();$("detailBody").replaceChildren();
-    if(!loaded){$("modeBadge").textContent="Calendar extract · Offline prototype";$("sourceStatus").textContent="Import a six-week calendar extract or a saved plan. No sign-in needed.";$("weeks").textContent="Your six-week plan will appear here after import.";$("detailTitle").textContent="Select a day";$("detailBody").textContent="Import your calendar, then select a day to see its calendar and focus time.";return;}
+    if(!loaded){$("modeBadge").textContent="Calendar extract · Offline prototype";$("weeks").textContent="Your six-week plan will appear here after import.";$("detailTitle").textContent="Select a day";$("detailBody").textContent="Import your calendar, then select a day to see its calendar and focus time.";return;}
     const snapshot=plan.snapshot,zoneLabel=snapshot.timeZone==="America/New_York"?"Eastern Time":snapshot.timeZone,today=P.localParts(new Date().toISOString(),snapshot.timeZone).date,days=P.workdays(snapshot).filter(d=>d>=today),busy=P.intervals(snapshot);
     if(!days.includes(selected))selected=days[0]||null;
     $("modeBadge").textContent=snapshot.source==="demo"?"Demo · Synthetic availability":calendarConnection?.handle?"Outlook · Synced local file":"Outlook extract · No live connection";
-    $("sourceStatus").textContent=`${label(snapshot.windowStart)} – ${label(P.addDays(snapshot.windowEnd,-1))}, ${snapshot.windowEnd.slice(0,4)}. Captured ${new Date(snapshot.capturedAt).toLocaleString("en-US",{timeZone:snapshot.timeZone})} (${snapshot.timeZone}). ${snapshot.events.length} calendar intervals. ${calendarConnection?.handle?"Updates follow Power Automate and OneDrive sync.":"Availability is a snapshot; changes after capture are not reflected."}`;
     $("protectCommute").checked=plan.config.protectCommute;
     const sum=status=>plan.sessions.filter(s=>s.date>=today&&s.status===status).reduce((n,s)=>n+s.end-s.start,0);
     $("reserved").textContent=hours(sum("approved"));$("pending").textContent=hours(sum("proposed"));$("existing").textContent=hours(sum("existing"));
@@ -94,15 +93,13 @@
         segment.title=`${time(part.start)} – ${time(part.end)}: ${({off:"PTO / Out of office",meeting:"Meeting or unavailable",booked:"Booked focus",proposed:"Proposed focus",free:"Available"})[part.visual]}`;
         strip.append(segment);
       }
-      const ticks=document.createElement("div");ticks.className="timeline-ticks";
-      for(const tick of ["9:30","12:00","2:00","4:00","5:30"]){const span=document.createElement("span");span.textContent=tick;ticks.append(span);}
       const note=document.createElement("div");note.className="day-note";
       note.textContent=pct===null?"No focus planning needed":sessions.some(s=>s.status==="conflicted")?"Review focus conflict":P.hasContinuousFocus(plan,date)?"✅ Focus Time Secured":minutes?"Focus planned; 2h block needed":"No focus planned";
       if(note.textContent==="No focus planned")note.className+=" no-focus";
       if(note.textContent==="✅ Focus Time Secured")note.className+=" focus-secured";
       btn.append(name,badge);
       if(pct!==null){const caption=document.createElement("div");caption.className="meeting-caption";caption.textContent="in meetings";btn.append(caption);}
-      btn.append(strip,ticks,note);
+      btn.append(strip,note);
       btn.addEventListener("click",()=>{
         selected=date;render();
         $("daySidebar").scrollTop=0;

@@ -3,6 +3,13 @@ const {test}=require("node:test"),assert=require("node:assert/strict");
 const P=require("../planner.js"),L=require("../local-calendar.js");
 const NOW="2026-11-18T12:00:00Z";
 const snapshot=()=>({...P.demo(NOW),source:"outlook-extract"});
+test('Power Automate imports and refreshes omit overnight invites and retain early/evening meetings',()=>{
+ const value=[['overnight','02:05','03:00'],['early','06:00','07:00'],['evening','21:00','22:00'],['late','22:00','23:00']].map(([id,start,end])=>({id,subject:id,start:'2026-12-07T'+start+':00-05:00',end:'2026-12-07T'+end+':00-05:00',showAs:'busy'}));
+ const raw={windowStart:'2026-11-18',windowEnd:'2026-12-30',capturedAt:NOW,value};
+ const next=L.snapshotFromJSON(raw,NOW);assert.deepEqual(next.events.map(e=>e.id),['early','evening']);
+ const plan=P.createPlan({...next,events:[]},NOW);P.generate(plan,NOW);const block=plan.sessions.find(s=>s.date==='2026-12-07');block.status='approved';
+ const refreshed=L.reconcile(plan,next,NOW);assert.equal(refreshed.conflicts,0);assert.equal(refreshed.plan.sessions.find(s=>s.id===block.id).status,'approved');
+});
 test("all-day reminders arriving on refresh preserve approved focus without conflicts",()=>{
  const raw=snapshot(),plan=P.createPlan(raw,NOW);P.generate(plan,NOW);
  const block=plan.sessions.find(s=>s.date==="2026-11-20");block.status="approved";

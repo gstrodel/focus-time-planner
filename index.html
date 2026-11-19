@@ -37,6 +37,8 @@
     .tag.good{background:#e2f5e9;color:#147b4e}.tag.warn{background:#ffebe5;color:#9f4429}
     .block-actions{display:flex;gap:6px;flex-wrap:wrap}.block-actions button{font-size:12px;padding:7px 9px}
     .booking-form{padding:14px;background:#f3f6fa;border-radius:10px;margin-top:12px}.booking-form select{font:inherit;width:100%;padding:9px;border:1px solid #cbd7e4;border-radius:8px;background:white}.booking-form button{margin-top:14px}
+    .info-icon{vertical-align:middle;margin-right:4px}
+    .footer a{color:inherit;text-underline-offset:3px}
     .footer{margin:24px 0;color:#758499;font-size:12px;text-align:center}
     .calendar-legend{margin:12px 0 18px;gap:9px 14px}
     .day-calendar-scroll{max-height:660px;overflow:auto;border:1px solid #dbe4ef;border-radius:12px;padding:16px 8px 20px 0;background:#fff}
@@ -85,12 +87,11 @@
     .day .segment.proposed{background:#a985e8}
     .day .segment.free{background:#e9edf3}
     .coverage-legend .off,.day .segment.off{background:repeating-linear-gradient(135deg,#c5ccd7,#c5ccd7 5px,#e1e5eb 5px,#e1e5eb 10px)}
-    .day .timeline-ticks{display:flex;justify-content:space-between;color:#68788d;font-size:10px;font-variant-numeric:tabular-nums;gap:2px}
     .day .day-note{font-size:11px;color:#607086;min-height:14px}
     .day .day-note.no-focus{color:#a22c36}
     .day .day-note.focus-secured{color:#147b4e}
     @media(max-width:1000px){.week{grid-template-columns:repeat(3,minmax(0,1fr))}}
-    @media(max-width:620px){.week{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.day{min-height:170px;padding:12px 9px}.day .day-number{font-size:24px}.day .meeting-badge{font-size:20px}.day .timeline-ticks{font-size:9px}}
+    @media(max-width:620px){.week{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.day{min-height:170px;padding:12px 9px}.day .day-number{font-size:24px}.day .meeting-badge{font-size:20px}}
 
     /* Keep calendar input and plan actions directly below the header. */
     .workspace-controls{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,3fr);gap:18px;align-items:start}
@@ -100,6 +101,8 @@
     .plan-heading h2{margin:0;font-size:22px}
     .header-actions{display:flex;align-items:center;justify-content:flex-end;gap:14px;flex-wrap:wrap}
     .header-actions .btn{background:#213d56;border-color:#7890a7;color:#fff}
+    #preferencesButton{font-size:12px;padding:6px 10px;border-radius:7px}
+    #preferencesButton .info-icon{width:14px;height:14px}
     .export-actions{display:flex;align-items:center;gap:14px;margin-top:14px;padding-top:14px;border-top:1px solid #e9eff5}
     .export-actions .btn{flex-shrink:0}
     .export-actions .hint{margin:0;flex:1;min-width:0}
@@ -132,12 +135,12 @@
     .day-sidebar .row{align-items:flex-start;gap:10px}
     .day-sidebar .block-actions{width:100%}
     .day-sidebar:focus-visible{outline:3px solid #3388e5;outline-offset:3px}
-    @media(min-width:1001px) and (max-width:1250px){.calendar-workspace .week{gap:8px}.calendar-workspace .day{padding:12px 8px}.calendar-workspace .day .date{gap:6px}.calendar-workspace .day .day-number{font-size:25px}.calendar-workspace .day .weekday{font-size:12px}.calendar-workspace .day .timeline-ticks{font-size:9px}}
+    @media(min-width:1001px) and (max-width:1250px){.calendar-workspace .week{gap:8px}.calendar-workspace .day{padding:12px 8px}.calendar-workspace .day .date{gap:6px}.calendar-workspace .day .day-number{font-size:25px}.calendar-workspace .day .weekday{font-size:12px}}
     @media(max-width:1000px){.calendar-workspace{display:flex;flex-direction:column}.calendar-workspace>.card{width:100%}.day-sidebar{position:static;order:-1;max-height:none;overflow:visible;scrollbar-gutter:auto}.day-sidebar .day-calendar-scroll{max-height:360px}}
   </style>
 </head>
 <body>
-<header class="top"><div class="brand"><img class="brand-icon" src="./focus-planner-icon.svg" width="48" height="48" alt="" aria-hidden="true"><div><h1>Focus Planner <small style="font-size:12px;font-weight:500;opacity:.7">v0.8</small></h1><p>Protect the time you need to do meaningful work.</p></div></div><div class="header-actions"><button class="btn" id="preferencesButton" aria-haspopup="dialog" aria-controls="preferencesDialog">Planning preferences</button><span class="badge" id="modeBadge">Calendar extract · Offline prototype</span></div></header>
+<header class="top"><div class="brand"><img class="brand-icon" src="./focus-planner-icon.svg" width="48" height="48" alt="" aria-hidden="true"><div><h1>Focus Planner <small style="font-size:12px;font-weight:500;opacity:.7">v0.8</small></h1><p>Protect the time you need to do meaningful work.</p></div></div><div class="header-actions"><button class="btn" id="preferencesButton" aria-haspopup="dialog" aria-controls="preferencesDialog"><svg class="info-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="M12 10v7"/><circle cx="12" cy="7" r="1" fill="currentColor" stroke="none"/></svg> Planning preferences</button><span class="badge" id="modeBadge">Calendar extract · Offline prototype</span></div></header>
 <main>
   <div class="workspace-controls" aria-label="Calendar and plan controls">
     <section class="card calendar-source" aria-labelledby="calendarFileTitle">
@@ -146,7 +149,6 @@
       <div class="actions"><button class="btn primary" id="connectCalendar">Connect calendar folder</button><button class="btn" id="refreshCalendar" disabled>Refresh now</button><button class="btn" id="disconnectCalendar" disabled>Disconnect</button></div>
       <p class="hint" id="calendarFileStatus" role="status">Use Edge or Chrome and choose the folder when prompted.</p>
       <label for="import">Or import a calendar extract or saved plan (.json)</label><input id="import" type="file" accept=".json,application/json">
-      <p class="hint" id="sourceStatus" role="status"></p>
       <details class="help"><summary>Calendar file setup</summary>
         <p class="hint file-path">C:\Users\UBC3554\OneDrive - Takeda\SuperlistSync\calendar_events.json</p>
         <p class="hint">Select the folder once; the app checks the file every minute while open. Keep the full 42-day Power Automate export, including all pages, in this file. OneDrive must finish syncing before updates appear.</p>
@@ -179,7 +181,7 @@
       <div id="detailBody" class="hint">Import your calendar, then select a day to see its calendar and focus time.</div>
     </aside>
   </div>
-  <p class="footer">Prototype v0.8 · Local calendar file · Local browser storage · Manual Outlook .ics import</p>
+  <p class="footer">Made with <span role="img" aria-label="love">❤️</span> in Boston by <a href="https://github.com/gstrodel/focus-time-planner" target="_blank" rel="noopener noreferrer">Gordon Strodel</a></p>
 </main>
 <dialog id="preferencesDialog" class="preferences-dialog" aria-labelledby="preferencesTitle">
   <div class="panelhead"><h3 id="preferencesTitle">Planning preferences</h3><form method="dialog"><button class="btn" aria-label="Close planning preferences" autofocus>Close</button></form></div>

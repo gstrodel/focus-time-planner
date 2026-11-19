@@ -36,6 +36,16 @@ test('legacy outcome statuses migrate to planning decisions without outcome cont
  const plan=P.createPlan(P.demo());P.generate(plan);plan.sessions[0].status='completed';plan.sessions[1].status='rejected';plan.savedAt=new Date().toISOString();const app=boot();await app.import(plan);assert.equal(app.state().sessions[0].status,'approved');assert.equal(app.state().sessions[1].status,'rejected');assert.equal(app.nodes.insights,undefined);
 });
 const descendants=node=>[node,...node.children.filter(e=>typeof e==='object').flatMap(descendants)];
+test('day calendar retains early and evening meetings, omits overnight invites and removes card time ticks',async()=>{
+ const raw=P.demo(),date=P.workdays(raw)[0];
+ raw.events=[['overnight','02:05','03:00'],['early','06:00','07:00'],['evening','21:00','22:00'],['late','22:00','23:00']].map(([id,start,end])=>({id,title:id,start:date+'T'+start+':00-05:00',end:date+'T'+end+':00-05:00',status:'busy',kind:'busy'}));
+ const app=boot();await app.import(raw);
+ assert.equal(app.nodes.sourceStatus,undefined);
+ assert.deepEqual(app.state().snapshot.events.map(e=>e.id),['early','evening']);
+ assert.equal(descendants(app.nodes.weeks).some(e=>e.className==='timeline-ticks'),false);
+ const titles=descendants(app.nodes.detailBody).filter(e=>e.className==='calendar-event cal-busy').map(e=>e.children[0].textContent);
+ assert.deepEqual(titles,['early','evening']);
+});
 test('coverage notes distinguish missing focus, secured focus and full-day PTO',()=>{
  const raw=P.demo(),dates=P.workdays(raw),[empty,focused,off]=dates.slice(1,4);
  raw.events=[{id:'away',start:off+'T00:00:00Z',end:P.addDays(off,1)+'T00:00:00Z',status:'oof',kind:'busy',allDay:true,title:'PTO',isOrganizer:true}];
