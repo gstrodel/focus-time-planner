@@ -18,7 +18,6 @@
     .actions{display:flex;flex-wrap:wrap;gap:9px}.btn{border:1px solid #cbd7e4;background:white;color:#183251;padding:10px 14px;border-radius:9px;font-weight:650}
     .btn.primary{background:#265caa;border-color:#265caa;color:#fff}.btn.danger{color:#a22c36}.btn:hover:not(:disabled){filter:brightness(.95)}
     .metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin:18px 0}.metric strong{display:block;font-size:29px;color:#1c4c8b;margin-top:7px}.metric span{color:#607083;font-size:13px}
-    .grid{display:grid;grid-template-columns:300px 1fr;gap:18px;align-items:start}.side{display:grid;gap:18px}
     h3{margin:0 0 16px;font-size:17px}label{display:block;color:#536276;font-size:12px;letter-spacing:.02em;margin:12px 0 5px}
     .setting{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid #e9eff5;gap:12px;font-size:13px}
     .setting b{font-size:13px;color:#172f49}.hint,.empty{color:#68798e;font-size:13px;line-height:1.55}
@@ -40,7 +39,7 @@
     .block-actions{display:flex;gap:6px;flex-wrap:wrap}.block-actions button{font-size:12px;padding:7px 9px}
     .booking-form{padding:14px;background:#f3f6fa;border-radius:10px;margin-top:12px}.booking-form select{font:inherit;width:100%;padding:9px;border:1px solid #cbd7e4;border-radius:8px;background:white}.booking-form button{margin-top:14px}
     .footer{margin:24px 0;color:#758499;font-size:12px;text-align:center}
-    .grid>section{min-width:0}.calendar-legend{margin:12px 0 18px;gap:9px 14px}
+    .calendar-legend{margin:12px 0 18px;gap:9px 14px}
     .day-calendar-scroll{max-height:660px;overflow:auto;border:1px solid #dbe4ef;border-radius:12px;padding:16px 8px 20px 0;background:#fff}
     .day-calendar{position:relative;margin-left:82px;margin-right:4px}
     .calendar-grid,.calendar-boxes{position:absolute;inset:0}.calendar-grid{background:#fff;border-left:1px solid #dbe4ef}
@@ -54,13 +53,9 @@
     .cal-oof{background:#eceff3;border-color:#8895a6;color:#445165}.cal-free{background:#fff;border-color:#93a3b8;color:#506176;border-style:dashed}
     .cal-existing{background:#e9e0f7;border-color:#9874ce;color:#5e398c}.cal-proposed{background:#eef6ff;border-color:#6c9ed9;border-style:dashed;color:#275c9b}
     .cal-approved{background:#d9f2e7;border-color:#52a982;color:#176043}
-    @media(max-width:950px){.grid{grid-template-columns:1fr}.side{grid-template-columns:1fr 1fr}}
-    @media(max-width:620px){main{padding:15px}.top{padding:18px}.badge{display:none}.metrics{grid-template-columns:1fr 1fr}.side{grid-template-columns:1fr}.week{gap:4px}.day{min-height:105px;padding:8px 5px}.day .hours{font-size:16px}.day .date{font-size:10px}.day .sub{font-size:9px}}
+    @media(max-width:620px){main{padding:15px}.top{padding:18px}.badge{display:none}.metrics{grid-template-columns:1fr 1fr}.week{gap:4px}.day{min-height:105px;padding:8px 5px}.day .hours{font-size:16px}.day .date{font-size:10px}.day .sub{font-size:9px}}
 
     /* Six-week focus coverage: proportional 9:30 AM–5:30 PM timelines */
-    .grid{grid-template-columns:minmax(0,1fr)}
-    .side{grid-template-columns:repeat(2,minmax(0,1fr))}
-    .grid>section{grid-column:1/-1}
     .coverage-legend{display:flex;flex-wrap:wrap;gap:9px 18px;font-size:12px;color:#52637a}
     .coverage-legend span{display:inline-flex;align-items:center;gap:6px}
     .coverage-legend i{display:inline-block;width:14px;height:10px;border-radius:4px}
@@ -88,16 +83,61 @@
     .day .segment.free{background:#e9edf3}
     .day .timeline-ticks{display:flex;justify-content:space-between;color:#68788d;font-size:10px;font-variant-numeric:tabular-nums;gap:2px}
     .day .day-note{font-size:11px;color:#607086;min-height:14px}
-    @media(max-width:1000px){.week{grid-template-columns:repeat(3,minmax(0,1fr))}.side{grid-template-columns:repeat(2,minmax(0,1fr))}}
-    @media(max-width:620px){.week{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.day{min-height:170px;padding:12px 9px}.day .day-number{font-size:24px}.day .meeting-badge{font-size:20px}.day .timeline-ticks{font-size:9px}.side{grid-template-columns:1fr}}
+    @media(max-width:1000px){.week{grid-template-columns:repeat(3,minmax(0,1fr))}}
+    @media(max-width:620px){.week{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.day{min-height:170px;padding:12px 9px}.day .day-number{font-size:24px}.day .meeting-badge{font-size:20px}.day .timeline-ticks{font-size:9px}}
+
+    /* Keep calendar input and all global planning actions directly below the header. */
+    .workspace-controls{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,3fr);gap:18px;align-items:start}
+    .workspace-controls>.card{min-width:0;height:100%}
+    .workspace-controls .hint{margin:10px 0;font-size:13px}
+    .workspace-controls h3{margin-bottom:10px}
+    .plan-heading h2{margin:0;font-size:22px}
+    .secondary-actions{margin-top:12px;padding-top:12px;border-top:1px solid #e9eff5}
+    .export-help{margin-top:14px;padding-top:4px;border-top:1px solid #e9eff5}
+    .help{margin-top:10px}.help summary{cursor:pointer;color:#28589c;font-size:13px;font-weight:600}
+    .file-path{overflow-wrap:anywhere}
+    .metrics{grid-template-columns:repeat(6,minmax(0,1fr))}
+    .metric{padding:18px}.metric span{display:block;min-height:36px;line-height:1.4}
+    .preferences-dialog{width:min(560px,calc(100% - 30px));max-height:calc(100dvh - 40px);overflow:auto;border:1px solid #dee5ed;border-radius:16px;padding:24px;color:#14253b;background:#fff;box-shadow:0 20px 70px #13263c40}
+    .preferences-dialog::backdrop{background:#13263c70}
+    .preferences-dialog form{margin:0}
+    .preferences-dialog .setting{font-size:14px}.preferences-dialog .setting b{text-align:right;font-size:14px}
+    .btn:focus-visible,.help summary:focus-visible,input:focus-visible{outline:3px solid #3388e5;outline-offset:3px}
+    @media(max-width:1050px){.metrics{grid-template-columns:repeat(3,minmax(0,1fr))}}
+    @media(max-width:800px){.workspace-controls{grid-template-columns:minmax(0,1fr)}}
+    @media(max-width:620px){.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.workspace-controls>.card{padding:18px}.metric span{min-height:36px}}
   </style>
 </head>
 <body>
 <header class="top"><div class="brand"><img class="brand-icon" src="./focus-planner-icon.svg" width="48" height="48" alt="" aria-hidden="true"><div><h1>Focus Planner <small style="font-size:12px;font-weight:500;opacity:.7">v0.8</small></h1><p>Protect the time you need to do meaningful work.</p></div></div><span class="badge" id="modeBadge">Calendar extract · Offline prototype</span></header>
 <main>
-  <section class="card lead"><div><h2>Your six-week focus plan</h2><p>Plan at least one continuous two-hour focus block each workday, preferably in the morning. Add more whenever your day allows.</p></div>
-  <div class="actions"><button class="btn primary" id="generate">Generate plan</button><button class="btn" id="approveAll">Approve all proposals</button><button class="btn" id="save">Save plan</button><button class="btn" id="export">Download plan</button><button class="btn primary" id="exportIcs" aria-describedby="icsStatus" disabled>Export to Outlook (.ics)</button></div></section>
-  <section class="card" style="margin-bottom:18px" aria-label="Outlook export"><p class="hint" id="icsStatus" role="status"></p><p class="hint">After saving: in Outlook on the web, choose <b>Calendar → Add calendar → Upload from file</b>, select the .ics, choose your <b>main work calendar</b>, then import. Only new approved future blocks are exported; focus already on Outlook is excluded. This is a one-time import. Reimporting may create duplicates; later edits or removals in this app do not update imported appointments.</p></section>
+  <div class="workspace-controls" aria-label="Calendar and plan controls">
+    <section class="card calendar-source" aria-labelledby="calendarFileTitle">
+      <h3 id="calendarFileTitle">Your calendar file</h3>
+      <p class="hint">Connect your <b>SuperlistSync</b> folder to read <b>calendar_events.json</b>.</p>
+      <div class="actions"><button class="btn primary" id="connectCalendar">Connect calendar folder</button><button class="btn" id="refreshCalendar" disabled>Refresh now</button><button class="btn" id="disconnectCalendar" disabled>Disconnect</button></div>
+      <p class="hint" id="calendarFileStatus" role="status">Use Edge or Chrome and choose the folder when prompted.</p>
+      <label for="import">Or import a calendar extract or saved plan (.json)</label><input id="import" type="file" accept=".json,application/json">
+      <p class="hint" id="sourceStatus" role="status"></p>
+      <details class="help"><summary>Calendar file setup</summary>
+        <p class="hint file-path">C:\Users\UBC3554\OneDrive - Takeda\SuperlistSync\calendar_events.json</p>
+        <p class="hint">Select the folder once; the app checks the file every minute while open. Keep the full 42-day Power Automate export, including all pages, in this file. OneDrive must finish syncing before updates appear.</p>
+        <p class="hint">Import a downloaded plan to restore your planning decisions.</p>
+      </details>
+    </section>
+    <section class="card plan-controls" aria-labelledby="planTitle">
+      <div class="plan-heading"><div><h2 id="planTitle">Your six-week focus plan</h2><p class="hint">Protect a continuous two-hour block each workday. Add more whenever your day allows.</p></div></div>
+      <div class="actions" aria-label="Plan actions"><button class="btn primary" id="generate">Generate plan</button><button class="btn" id="approveAll">Approve all proposals</button><button class="btn" id="save">Save plan</button><button class="btn" id="export">Download plan</button><button class="btn primary" id="exportIcs" aria-describedby="icsStatus" disabled>Export to Outlook (.ics)</button><button class="btn danger" id="reset">Rebuild plan</button></div>
+      <div class="actions secondary-actions"><button class="btn" id="preferencesButton" aria-haspopup="dialog" aria-controls="preferencesDialog">Planning preferences</button><button class="btn" id="demoMode">Try demo data</button></div>
+      <p class="hint">Select a day to add or extend focus time. Every added or extended block needs approval.</p>
+      <p class="hint" id="notice" role="status">Import an extract to get started.</p>
+      <p class="save-status" id="saveStatus" role="status">Changes save automatically in this browser.</p>
+      <div class="export-help" aria-label="Outlook export">
+        <p class="hint" id="icsStatus" role="status"></p>
+        <details class="help"><summary>How to import into Outlook</summary><p class="hint">After saving: in Outlook on the web, choose <b>Calendar → Add calendar → Upload from file</b>, select the .ics, choose your <b>main work calendar</b>, then import. Only new approved future blocks are exported; focus already on Outlook is excluded. This is a one-time import. Reimporting may create duplicates; later edits or removals in this app do not update imported appointments.</p></details>
+      </div>
+    </section>
+  </div>
   <section class="metrics" aria-label="Plan metrics">
     <div class="card metric"><span>Minimum focus hours</span><strong id="target">0h</strong></div>
     <div class="card metric"><span>Approved locally</span><strong id="reserved">0h</strong></div>
@@ -106,41 +146,25 @@
     <div class="card metric"><span>Days within meeting limit</span><strong id="meetingGoal">0</strong></div>
     <div class="card metric"><span>Days with 2h continuous focus planned</span><strong id="focusDays">0</strong></div>
   </section>
-  <div class="grid">
-    <aside class="side"><section class="card"><h3>Your calendar file</h3>
-<p class="hint">Keep your Power Automate export connected. Select the <b>SuperlistSync</b> folder once; the app checks <b>calendar_events.json</b> every minute while open.</p>
-<p class="hint" style="overflow-wrap:anywhere">C:\Users\UBC3554\OneDrive - Takeda\SuperlistSync\calendar_events.json</p>
-<div class="actions"><button class="btn primary" id="connectCalendar">Connect calendar folder</button><button class="btn" id="refreshCalendar" disabled>Refresh now</button><button class="btn" id="disconnectCalendar" disabled>Disconnect</button></div>
-<p class="hint" id="calendarFileStatus" role="status">Use Edge or Chrome and choose the folder when prompted. Keep the full 42-day export, including all pages, in this file. OneDrive must finish syncing before updates appear.</p>
-<p class="hint">Import your Outlook extract to find focus time and view your day on a calendar grid. Import a downloaded plan to restore your planning decisions.</p>
-<label for="import">Calendar extract or saved plan (.json)</label><input id="import" type="file" accept=".json,application/json">
-<p class="hint" id="sourceStatus" role="status"></p>
-<p class="save-status" id="saveStatus" role="status">Changes save automatically in this browser.</p>
-<button class="btn" id="demoMode">Try demo data</button>
-</section><section class="card"><h3>Planning preferences</h3>
+    <section class="card"><div class="panelhead"><h3>Calendar coverage</h3><div class="coverage-legend" aria-label="Timeline legend"><span><i class="meetings"></i>Meetings</span><span><i class="booked"></i>Booked focus</span><span><i class="suggested"></i>Proposed focus</span><span><i class="free"></i>Available</span></div></div>
+      <p class="hint" id="coverageSummary"></p><div class="weeks" id="weeks"></div><section class="detail"><h3 id="detailTitle">Select a day</h3><div id="detailBody" class="hint">Generate a plan to see suggested sessions.</div></section>
+    </section>
+  <p class="footer">Prototype v0.8 · Local calendar file · Local browser storage · Manual Outlook .ics import</p>
+</main>
+<dialog id="preferencesDialog" class="preferences-dialog" aria-labelledby="preferencesTitle">
+  <div class="panelhead"><h3 id="preferencesTitle">Planning preferences</h3><form method="dialog"><button class="btn" aria-label="Close planning preferences" autofocus>Close</button></form></div>
       <div class="setting"><span>Rolling horizon</span><b>6 weeks</b></div>
       <div class="setting"><span>Daily focus minimum</span><b>2 hours, continuous</b></div>
+      <div class="setting"><span>Target at ≤50% meetings</span><b>At least 4h / half the day</b></div>
       <div class="setting"><span>Additional blocks</span><b>60 minutes or longer</b></div>
       <div class="setting"><span>Meeting goal</span><b>At most 50% of the day</b></div>
       <div class="setting"><span>Preferred time</span><b>Morning</b></div>
       <div class="setting"><span>Working hours</span><b>9:00–5:30</b></div><div class="setting"><span>Meetings preferred after</span><b>9:30 AM</b></div><label style="line-height:1.6"><input type="checkbox" id="protectCommute"> Keep 9:00–9:30 free for commuting</label>
       <div class="setting"><span>Approval before changes</span><b>Required</b></div>
-      <p class="hint">Existing calendar focus counts toward the target. Tentative events and time off block scheduling. Approvals are saved locally; they do not book Outlook events.</p></section>
-      <section class="card"><h3>Plan status</h3><p class="hint" id="notice" role="status">Import an extract to get started.</p><p class="hint">Save in this browser to revisit the plan. Download a backup to keep it across browsers or devices. A connected calendar file refreshes while this page is open. Check its last update above before booking focus time.</p></section>
-      <section class="card"><h3>Plan controls</h3><p class="hint">Select a day to add more focus time or extend a future block. Every added or extended block needs local approval.</p>
-      <button class="btn danger" id="reset" style="margin-top:14px">Rebuild plan</button></section>
-    </aside>
-    <section class="card"><div class="panelhead"><h3>Calendar coverage</h3><div class="coverage-legend" aria-label="Timeline legend"><span><i class="meetings"></i>Meetings</span><span><i class="booked"></i>Booked focus</span><span><i class="suggested"></i>Proposed focus</span><span><i class="free"></i>Available</span></div></div>
-      <p class="hint" id="coverageSummary"></p><div class="weeks" id="weeks"></div><section class="detail"><h3 id="detailTitle">Select a day</h3><div id="detailBody" class="hint">Generate a plan to see suggested sessions.</div></section>
-    </section>
-  </div><p class="footer">Prototype v0.8 · Local calendar file · Local browser storage · Manual Outlook .ics import</p>
-</main>
+      <p class="hint">Existing calendar focus counts toward the target. Tentative events and time off block scheduling. Approvals are saved locally; they do not book Outlook events.</p></dialog>
 <script src="planner.js" defer></script>
 <script src="local-calendar.js" defer></script>
 <script src="ical.js" defer></script>
 <script src="app.js" defer></script>
 </body>
 </html>
-
-
-
