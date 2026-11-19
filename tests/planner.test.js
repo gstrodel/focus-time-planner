@@ -38,16 +38,16 @@ test("42-day extract: weekday plans meet targets, stay in work hours and never o
  const plan=P.createPlan(raw,NOW);P.generate(plan,NOW);const busy=P.intervals(raw);
  assert.equal(P.workdays(raw).length,30);assert.equal(P.scheduled(plan,"2026-11-19"),0);
  for(const s of plan.sessions){assert.ok(s.start>=540&&s.end<=1050&&s.end-s.start>=60);assert.equal((busy[s.date]||[]).some(b=>P.overlap(b,s)),false);assert.equal(s.status,"proposed");}
- assert.equal(P.scheduled(plan,"2026-11-18"),120);
+ assert.equal(P.scheduled(plan,"2026-11-18"),240);
  const n=plan.sessions.length;assert.equal(P.generate(plan,NOW),0);assert.equal(plan.sessions.length,n);
 });
 test("continuous afternoon block takes priority over fragmented morning gaps",()=>{
  const plan=P.createPlan(snapshot([event("meeting","2026-11-18T15:30:00Z","2026-11-18T17:00:00Z")]),NOW);
- P.generate(plan,NOW);assert.equal(P.scheduled(plan,"2026-11-18"),120);assert.deepEqual(plan.sessions.filter(s=>s.date==="2026-11-18").map(s=>s.end-s.start),[120]);
+ P.generate(plan,NOW);assert.equal(P.scheduled(plan,"2026-11-18"),240);assert.deepEqual(plan.sessions.filter(s=>s.date==="2026-11-18").map(s=>s.end-s.start),[120,120]);
 });
 test("existing focus counts once, overlapping meetings take priority, no calendar duplication",()=>{
  const plan=P.createPlan(snapshot([event("f","2026-11-18T14:00:00Z","2026-11-18T16:00:00Z","existing-focus"),event("f2","2026-11-18T14:00:00Z","2026-11-18T16:00:00Z","existing-focus"),event("m","2026-11-18T15:00:00Z","2026-11-18T16:00:00Z")]),NOW);
- assert.equal(P.scheduled(plan,"2026-11-18"),60);P.generate(plan,NOW);assert.equal(P.scheduled(plan,"2026-11-18"),180);assert.ok(P.hasContinuousFocus(plan,"2026-11-18"));
+ assert.equal(P.scheduled(plan,"2026-11-18"),60);P.generate(plan,NOW);assert.equal(P.scheduled(plan,"2026-11-18"),240);assert.ok(P.hasContinuousFocus(plan,"2026-11-18"));
  assert.deepEqual(P.validatePlan(JSON.parse(JSON.stringify(plan))),plan);
 });
 test("multi-day time off blocks every covered weekday and explicit offsets cross DST correctly",()=>{
@@ -82,4 +82,30 @@ test("free invites do not block proposals or count as meetings",()=>{
  const raw=snapshot([{...event('free','2026-11-18T05:00:00Z','2026-11-19T05:00:00Z','busy','free'),allDay:true}]);
  const plan=P.createPlan(raw,NOW);assert.equal(P.intervals(plan.snapshot)['2026-11-18'],undefined);assert.equal(P.intervals(plan.snapshot,{includeFree:true})['2026-11-18'][0].allDay,true);
  assert.equal(P.meetingLoad(plan.snapshot,'2026-11-18').meetingMinutes,0);P.addBlock(plan,'2026-11-18',540,660,NOW);assert.equal(P.scheduled(plan,'2026-11-18'),120);
+});
+
+test("light meeting days target four hours, inclusive of already scheduled focus",()=>{
+ const raw=snapshot([event("m","2026-11-18T16:00:00Z","2026-11-18T18:00:00Z")]);
+ const plan=P.createPlan(raw,NOW);assert.equal(P.dailyFocusTarget(raw,"2026-11-18"),240);
+ P.generate(plan,NOW);assert.equal(P.scheduled(plan,"2026-11-18"),240);
+ assert.ok(P.hasContinuousFocus(plan,"2026-11-18"));
+ const n=plan.sessions.length;assert.equal(P.generate(plan,NOW),0);assert.equal(plan.sessions.length,n);
+});
+test("meeting-heavy days retain two-hour target; exactly half is not a light day",()=>{
+ const raw=snapshot([event("heavy","2026-11-18T14:30:00Z","2026-11-18T18:30:00Z")]);
+ assert.equal(P.meetingLoad(raw,"2026-11-18").ratio,0.5);
+ assert.equal(P.dailyFocusTarget(raw,"2026-11-18"),120);
+ const plan=P.createPlan(raw,NOW);P.generate(plan,NOW);assert.equal(P.scheduled(plan,"2026-11-18"),120);
+});
+test("PTO removes work minutes and does not get focus proposals",()=>{
+ const raw=snapshot([event("pto","2026-11-18T05:00:00Z","2026-11-19T05:00:00Z","busy","oof")]);
+ assert.equal(P.dailyFocusTarget(raw,"2026-11-18"),0);
+ const plan=P.createPlan(raw,NOW);P.generate(plan,NOW);assert.equal(P.scheduled(plan,"2026-11-18"),0);
+});
+test("existing focus contributes to four-hour target without duplication",()=>{
+ const raw=snapshot([event("existing","2026-11-18T15:00:00Z","2026-11-18T17:00:00Z","existing-focus")]);
+ const plan=P.createPlan(raw,NOW);
+ assert.equal(P.scheduled(plan,"2026-11-18"),120);
+ P.generate(plan,NOW);assert.equal(P.scheduled(plan,"2026-11-18"),240);
+ assert.equal(plan.sessions.filter(s=>s.date==="2026-11-18"&&s.status==="proposed").reduce((n,s)=>n+s.end-s.start,0),120);
 });
