@@ -31,7 +31,6 @@
     .day .sub{font-size:11px;color:#617185;margin:6px 0 0}.day .chips{display:flex;gap:4px;margin-top:12px;flex-wrap:wrap}
     .chip{height:7px;border-radius:9px;flex:1;min-width:8px;max-width:32px}.chip.pending{background:#8bb6ee}.chip.booked{background:#52bc8b}.chip.conflict{background:#e58b6a}.chip.calendar{background:#9874ce}.existing{background:#e9e0f7}input[type=file]{width:100%;font:inherit;font-size:12px}.save-status{font-size:12px;color:#64768a;margin-top:12px}.week{grid-template-columns:repeat(5,minmax(0,1fr))}.day .hours{font-size:19px}
     .day.unavailable{background:#fff9e9}.day.past{opacity:.63}
-    .detail{margin-top:20px;border-top:1px solid #e1e8f0;padding-top:18px}
     .detail h3{margin-bottom:8px}.row{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:12px 0;border-bottom:1px solid #eff2f7;flex-wrap:wrap}
     .row .title{font-weight:650;font-size:13px}.row small{display:block;color:#708195;margin-top:4px}
     .tag{display:inline-block;border-radius:15px;padding:4px 8px;font-size:11px;background:#e9f1ff;color:#28589c;margin-left:8px}
@@ -106,6 +105,23 @@
     @media(max-width:1050px){.metrics{grid-template-columns:repeat(3,minmax(0,1fr))}}
     @media(max-width:800px){.workspace-controls{grid-template-columns:minmax(0,1fr)}}
     @media(max-width:620px){.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.workspace-controls>.card{padding:18px}.metric span{min-height:36px}}
+
+    /* Keep the selected day beside the six-week coverage while browsing. */
+    main{max-width:1760px}
+    .top{padding-inline:max(28px,calc((100vw - 1704px)/2))}
+    .calendar-workspace{display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,440px);gap:20px;align-items:start}
+    .coverage-panel,.day-sidebar{min-width:0}
+    .day-sidebar{position:sticky;top:16px;max-height:calc(100dvh - 32px);overflow:auto;scrollbar-gutter:stable;scroll-margin-top:16px}
+    .day-sidebar .sidebar-label{margin:0 0 8px;color:#53647a;font-size:14px;font-weight:650}
+    .day-sidebar h3{font-size:18px;line-height:1.4}
+    .day-sidebar h4{margin:20px 0 10px;color:#233750;font-size:15px}
+    .day-sidebar .day-calendar-scroll{max-height:clamp(220px,42dvh,420px);overscroll-behavior:contain}
+    .day-sidebar .calendar-legend{gap:7px 12px}
+    .day-sidebar .row{align-items:flex-start;gap:10px}
+    .day-sidebar .block-actions{width:100%}
+    .day-sidebar:focus-visible{outline:3px solid #3388e5;outline-offset:3px}
+    @media(min-width:1001px) and (max-width:1250px){.calendar-workspace .week{gap:8px}.calendar-workspace .day{padding:12px 8px}.calendar-workspace .day .date{gap:6px}.calendar-workspace .day .day-number{font-size:25px}.calendar-workspace .day .weekday{font-size:12px}.calendar-workspace .day .timeline-ticks{font-size:9px}}
+    @media(max-width:1000px){.calendar-workspace{display:flex;flex-direction:column}.calendar-workspace>.card{width:100%}.day-sidebar{position:static;order:-1;max-height:none;overflow:visible;scrollbar-gutter:auto}.day-sidebar .day-calendar-scroll{max-height:360px}}
   </style>
 </head>
 <body>
@@ -146,9 +162,15 @@
     <div class="card metric"><span>Days within meeting limit</span><strong id="meetingGoal">0</strong></div>
     <div class="card metric"><span>Days with 2h continuous focus planned</span><strong id="focusDays">0</strong></div>
   </section>
-    <section class="card"><div class="panelhead"><h3>Calendar coverage</h3><div class="coverage-legend" aria-label="Timeline legend"><span><i class="meetings"></i>Meetings</span><span><i class="booked"></i>Booked focus</span><span><i class="suggested"></i>Proposed focus</span><span><i class="free"></i>Available</span></div></div>
-      <p class="hint" id="coverageSummary"></p><div class="weeks" id="weeks"></div><section class="detail"><h3 id="detailTitle">Select a day</h3><div id="detailBody" class="hint">Generate a plan to see suggested sessions.</div></section>
+  <div class="calendar-workspace">
+    <section class="card coverage-panel" aria-labelledby="coverageTitle"><div class="panelhead"><h3 id="coverageTitle">Calendar coverage</h3><div class="coverage-legend" aria-label="Timeline legend"><span><i class="meetings"></i>Meetings</span><span><i class="booked"></i>Booked focus</span><span><i class="suggested"></i>Proposed focus</span><span><i class="free"></i>Available</span></div></div>
+      <p class="hint" id="coverageSummary"></p><div class="weeks" id="weeks"></div>
     </section>
+    <aside class="card day-sidebar" id="daySidebar" aria-labelledby="detailTitle" tabindex="-1">
+      <p class="sidebar-label">Selected day</p><h3 id="detailTitle" aria-live="polite">Select a day</h3>
+      <div id="detailBody" class="hint">Import your calendar or try demo data, then select a day to see its calendar and focus time.</div>
+    </aside>
+  </div>
   <p class="footer">Prototype v0.8 · Local calendar file · Local browser storage · Manual Outlook .ics import</p>
 </main>
 <dialog id="preferencesDialog" class="preferences-dialog" aria-labelledby="preferencesTitle">
