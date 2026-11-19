@@ -46,21 +46,60 @@
     const shortfall=days.reduce((n,d)=>n+Math.max(0,120-P.scheduled(plan,d)),0);
     const conflicts=plan.sessions.filter(s=>s.status==="conflicted"&&s.date>=today).length;
     $("coverageSummary").textContent=`${covered} of ${days.length} upcoming weekdays have 2h continuous focus planned · ${hours(shortfall)} below the daily minimum in total · ${zoneLabel}`+(conflicts?` · ${conflicts} previous blocks conflict with the updated calendar; select their days to review.`:"");
+
+    // Each weekday card renders a real time-scaled strip, not event-count chips.
+    const stripStart=P.CONFIG.meetingStartMinute,stripEnd=P.CONFIG.endMinute;
+    const timelineFor=(date,sessions)=>{
+      const base=(busy[date]||[]).filter(e=>!e.allDay && e.status!=="free");
+      const blocks=[
+        ...base.map(e=>({...e,visual:e.kind==="existing-focus"?"booked":"meeting"})),
+        ...sessions.filter(s=>P.ACTIVE.has(s.status)&&s.status!=="existing").map(s=>({...s,visual:s.status==="proposed"?"proposed":"booked"}))
+      ];
+      const bounds=new Set([stripStart,stripEnd]);
+      for(const b of blocks){bounds.add(Math.max(stripStart,Math.min(stripEnd,b.start)));bounds.add(Math.max(stripStart,Math.min(stripEnd,b.end)));}
+      const points=[...bounds].sort((a,b)=>a-b);
+      const parts=[];
+      for(let i=0;i<points.length-1;i++){
+        const a=points[i],b=points[i+1];if(b<=a)continue;
+        const active=blocks.filter(e=>e.start<b&&e.end>a);
+        const visual=active.some(e=>e.visual==="meeting")?"meeting":active.some(e=>e.visual==="booked")?"booked":active.some(e=>e.visual==="proposed")?"proposed":"free";
+        const previous=parts.at(-1);
+        if(previous&&previous.visual===visual)previous.end=b;else parts.push({start:a,end:b,visual});
+      }
+      return parts;
+    };
     let group=null;
     for(const date of days) {
       if(!group || new Date(date+"T12:00:00Z").getUTCDay()===1){group=document.createElement("div");group.className="week";$("weeks").append(group);}
-      const continuous=P.hasContinuousFocus(plan,date),minutes=P.scheduled(plan,date),sessions=plan.sessions.filter(s=>s.date===date);
-      const target=P.dailyFocusTarget(snapshot,date,busy);
-      const highMeetings=loads[date].ratio!==null&&loads[date].ratio>P.CONFIG.maxMeetingRatio;
+      const sessions=plan.sessions.filter(s=>s.date===date),minutes=P.scheduled(plan,date);
+      const load=loads[date],pct=load.ratio===null?null:Math.round(load.ratio*100);
       const btn=document.createElement("button");btn.type="button";btn.dataset.date=date;
-      btn.className="day"+(date===selected?" selected":"")+(!continuous||highMeetings?" unavailable":"")+(date<today?" past":"");
-      btn.setAttribute("aria-label",`${label(date)}: ${hours(minutes)} focus, ${hours(Math.max(0,target-minutes))} shortfall`);
-      const name=document.createElement("div");name.className="date";name.textContent=label(date);
-      const total=document.createElement("div");total.className="hours";total.textContent=hours(minutes)+" planned";
-      const sub=document.createElement("div");sub.className="sub";sub.textContent=(target===0?"Out of office":minutes<target?hours(target-minutes)+" below "+hours(target)+" target":!continuous?"Needs 2h continuous":hours(target)+" target covered")+(highMeetings?" · Meetings exceed 50%":"")+(sessions.some(s=>s.status==="conflicted")?" · Review conflict":"");
-      const chips=document.createElement("div");chips.className="chips";
-      for(const s of sessions.filter(s=>P.ACTIVE.has(s.status))){const chip=document.createElement("span");chip.className="chip "+(s.status==="proposed"?"pending":s.status==="existing"?"calendar":"booked");chip.title=s.status;chips.append(chip);}
-      btn.append(name,total,sub,chips);btn.addEventListener("click",()=>{selected=date;render();});group.append(btn);
+      btn.className="day"+(date===selected?" selected":"");
+      btn.setAttribute("aria-pressed",date===selected?"true":"false");
+      const status=pct===null?"No working time":pct>50?"Above 50% meeting goal":pct===50?"At 50% meeting goal":"Below 50% meeting goal";
+      btn.setAttribute("aria-label",`${label(date)}: ${pct===null?"N/A":pct+"%"} in meetings, ${hours(minutes)} of focus; ${status}`);
+      const name=document.createElement("div");name.className="date";
+      const number=document.createElement("span");number.className="day-number";number.textContent=String(Number(date.slice(-2)));
+      const weekday=document.createElement("span");weekday.className="weekday";weekday.textContent=new Date(date+"T12:00:00Z").toLocaleDateString("en-US",{timeZone:"UTC",weekday:"short"}).toUpperCase();
+      name.append(number,weekday);
+      const badge=document.createElement("span");badge.className="meeting-badge "+(pct===null?"na":pct>50?"over":pct===50?"limit":"good");
+      badge.textContent=pct===null?"N/A":pct+"%";
+      const caption=document.createElement("div");caption.className="meeting-caption";caption.textContent="in meetings";
+      const strip=document.createElement("div");strip.className="day-timeline";
+      strip.setAttribute("aria-label","Workday distribution, 9:30 AM to 5:30 PM");
+      for(const part of timelineFor(date,sessions)){
+        const segment=document.createElement("span");segment.className="segment "+part.visual;
+        segment.style.flex=`${part.end-part.start} 0 0%`;
+        segment.title=`${time(part.start)} – ${time(part.end)}: ${({meeting:"Meeting or unavailable",booked:"Booked focus",proposed:"Proposed focus",free:"Available"})[part.visual]}`;
+        strip.append(segment);
+      }
+      const ticks=document.createElement("div");ticks.className="timeline-ticks";
+      for(const tick of ["9:30","12:00","2:00","4:00","5:30"]){const span=document.createElement("span");span.textContent=tick;ticks.append(span);}
+      const note=document.createElement("div");note.className="day-note";
+      note.textContent=sessions.some(s=>s.status==="conflicted")?"Review focus conflict":P.hasContinuousFocus(plan,date)?"2h continuous focus secured":minutes?"Focus planned; 2h block needed":"No focus planned";
+      btn.append(name,badge,caption,strip,ticks,note);
+      btn.addEventListener("click",()=>{selected=date;render();});
+      group.append(btn);
     }
     if(!selected){$("detailTitle").textContent="Calendar extract ended";$("detailBody").textContent="Import a new six-week extract to plan upcoming focus time.";return;}
     $("detailTitle").textContent=label(selected)+" · "+zoneLabel;
