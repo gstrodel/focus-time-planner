@@ -56,6 +56,40 @@
     .cal-approved{background:#d9f2e7;border-color:#52a982;color:#176043}
     @media(max-width:950px){.grid{grid-template-columns:1fr}.side{grid-template-columns:1fr 1fr}}
     @media(max-width:620px){main{padding:15px}.top{padding:18px}.badge{display:none}.metrics{grid-template-columns:1fr 1fr}.side{grid-template-columns:1fr}.week{gap:4px}.day{min-height:105px;padding:8px 5px}.day .hours{font-size:16px}.day .date{font-size:10px}.day .sub{font-size:9px}}
+
+    /* Six-week focus coverage: proportional 9:30 AM–5:30 PM timelines */
+    .grid{grid-template-columns:minmax(0,1fr)}
+    .side{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .grid>section{grid-column:1/-1}
+    .coverage-legend{display:flex;flex-wrap:wrap;gap:9px 18px;font-size:12px;color:#52637a}
+    .coverage-legend span{display:inline-flex;align-items:center;gap:6px}
+    .coverage-legend i{display:inline-block;width:14px;height:10px;border-radius:4px}
+    .coverage-legend .booked{background:#40ae68}.coverage-legend .suggested{background:#a985e8}
+    .coverage-legend .meetings{background:#b1b7c1}.coverage-legend .free{background:#e9edf3}
+    .weeks{gap:14px}
+    .week{gap:12px;grid-template-columns:repeat(5,minmax(0,1fr))}
+    .day{min-width:0;min-height:185px;padding:16px 12px;background:#fff;border-color:#d6dee9;border-radius:15px;display:flex;flex-direction:column;gap:10px}
+    .day.unavailable{background:#fff}
+    .day.selected{outline:2px solid #3388e5;background:#f4f9ff}
+    .day .date{display:flex;align-items:baseline;gap:9px;margin:0}
+    .day .day-number{font-size:29px;font-weight:780;color:#16263d;line-height:1}
+    .day .weekday{font-size:13px;font-weight:650;color:#53647a}
+    .day .meeting-badge{align-self:flex-start;border-radius:13px;padding:3px 10px;font-size:23px;font-weight:760;line-height:1.3}
+    .day .meeting-badge.good{background:#d9f3e4;color:#185c3d}
+    .day .meeting-badge.limit{background:#e9edf2;color:#344356}
+    .day .meeting-badge.over{background:#ffe0df;color:#8c292a}
+    .day .meeting-badge.na{background:#f0f2f5;color:#657284}
+    .day .meeting-caption{font-size:11px;color:#607086;margin-top:-8px}
+    .day .day-timeline{display:flex;height:22px;width:100%;overflow:hidden;flex-shrink:0;border-radius:11px;background:#e9edf3;margin-top:auto}
+    .day .segment{height:100%;min-width:0}
+    .day .segment.meeting{background:#b1b7c1}
+    .day .segment.booked{background:#40ae68}
+    .day .segment.proposed{background:#a985e8}
+    .day .segment.free{background:#e9edf3}
+    .day .timeline-ticks{display:flex;justify-content:space-between;color:#68788d;font-size:10px;font-variant-numeric:tabular-nums;gap:2px}
+    .day .day-note{font-size:11px;color:#607086;min-height:14px}
+    @media(max-width:1000px){.week{grid-template-columns:repeat(3,minmax(0,1fr))}.side{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media(max-width:620px){.week{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.day{min-height:170px;padding:12px 9px}.day .day-number{font-size:24px}.day .meeting-badge{font-size:20px}.day .timeline-ticks{font-size:9px}.side{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
@@ -96,7 +130,7 @@
       <section class="card"><h3>Plan controls</h3><p class="hint">Select a day to add more focus time or extend a future block. Every added or extended block needs local approval.</p>
       <button class="btn danger" id="reset" style="margin-top:14px">Rebuild plan</button></section>
     </aside>
-    <section class="card"><div class="panelhead"><h3>Calendar coverage</h3><div class="legend"><span><i class="dot proposed"></i>Proposed</span><span><i class="dot approved"></i>Approved</span><span><i class="dot existing"></i>On calendar</span><span><i class="dot shortfall"></i>Shortfall</span></div></div>
+    <section class="card"><div class="panelhead"><h3>Calendar coverage</h3><div class="coverage-legend" aria-label="Timeline legend"><span><i class="meetings"></i>Meetings</span><span><i class="booked"></i>Booked focus</span><span><i class="suggested"></i>Proposed focus</span><span><i class="free"></i>Available</span></div></div>
       <p class="hint" id="coverageSummary"></p><div class="weeks" id="weeks"></div><section class="detail"><h3 id="detailTitle">Select a day</h3><div id="detailBody" class="hint">Generate a plan to see suggested sessions.</div></section>
     </section>
   </div><p class="footer">Prototype v0.8 · Local calendar file · Local browser storage · Manual Outlook .ics import</p>
