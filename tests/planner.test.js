@@ -8,6 +8,18 @@ test("meeting limit uses unioned meeting time, excludes focus, and removes time 
  assert.deepEqual(P.meetingLoad(raw,"2026-11-18"),{workingMinutes:360,meetingMinutes:150,ratio:150/360});
  assert.deepEqual(P.meetingLoad(raw,"2026-11-19"),{workingMinutes:0,meetingMinutes:0,ratio:null});
 });
+test("all-day reminders do not consume meetings, block focus or count as booked focus",()=>{
+ for(const status of ["busy","tentative","unknown","free"])for(const kind of ["busy","existing-focus"]){
+  const banner={...event("banner","2026-11-20T00:00:00Z","2026-11-21T00:00:00Z",kind,status),allDay:true,title:"Focus Friday"};
+  const raw=snapshot([banner,event("meeting","2026-11-20T15:00:00Z","2026-11-20T16:00:00Z")]);
+  const plan=P.createPlan(raw,NOW);
+  assert.equal(P.scheduled(plan,"2026-11-20"),0);
+  assert.deepEqual(P.meetingLoad(raw,"2026-11-20"),{workingMinutes:480,meetingMinutes:60,ratio:1/8});
+  assert.deepEqual(P.intervals(raw,{includeFree:true})["2026-11-20"].map(e=>e.id),["meeting"]);
+  P.generate(plan,NOW);assert.equal(P.scheduled(plan,"2026-11-20"),240);
+  assert.deepEqual(P.validatePlan(JSON.parse(JSON.stringify(plan))),plan);
+ }
+});
 test("manual additions can exceed two hours and round-trip through saved plans",()=>{
  const plan=P.createPlan(snapshot(),NOW);
  P.addBlock(plan,"2026-11-18",540,720,NOW);P.addBlock(plan,"2026-11-18",750,930,NOW);
@@ -78,12 +90,13 @@ test("imports retain titles and all-day flags but discard legacy meeting details
  const raw=snapshot([{...event("m","2026-11-18T14:00:00Z","2026-11-18T15:00:00Z"),allDay:true,title:"Planning review",description:{html:"legacy details"},organizer:{name:"Meeting Organizer",email:"organizer@example.test"}}]);
  const plan=P.createPlan(raw,NOW),restored=P.validatePlan(JSON.parse(JSON.stringify(plan)));
  assert.deepEqual(restored.snapshot.events[0],plan.snapshot.events[0]);assert.equal(restored.snapshot.events[0].title,"Planning review");
- for(const e of [restored.snapshot.events[0],P.intervals(restored.snapshot)["2026-11-18"][0]]){assert.equal(e.allDay,true);assert.equal('description' in e,false);assert.equal('organizer' in e,false);}
+ const e=restored.snapshot.events[0];assert.equal(e.allDay,true);assert.equal('description' in e,false);assert.equal('organizer' in e,false);
+ assert.deepEqual(P.intervals(restored.snapshot),{});
  assert.throws(()=>P.validateSnapshot(snapshot([{...raw.events[0],title:{html:"invalid title"}}])));
 });
 test("free invites do not block proposals or count as meetings",()=>{
  const raw=snapshot([{...event('free','2026-11-18T05:00:00Z','2026-11-19T05:00:00Z','busy','free'),allDay:true}]);
- const plan=P.createPlan(raw,NOW);assert.equal(P.intervals(plan.snapshot)['2026-11-18'],undefined);assert.equal(P.intervals(plan.snapshot,{includeFree:true})['2026-11-18'][0].allDay,true);
+ const plan=P.createPlan(raw,NOW);assert.equal(P.intervals(plan.snapshot)['2026-11-18'],undefined);assert.deepEqual(P.intervals(plan.snapshot,{includeFree:true}),{});
  assert.equal(P.meetingLoad(plan.snapshot,'2026-11-18').meetingMinutes,0);P.addBlock(plan,'2026-11-18',540,660,NOW);assert.equal(P.scheduled(plan,'2026-11-18'),120);
 });
 
@@ -169,7 +182,7 @@ test('Nov 20 teammate PTO is ignored for full and partial days, including busy a
  }
 });
 
-test('own PTO and shared company closures still remove working time; ordinary invites still block',()=>{
+test('own PTO and shared company closures still remove working time; timed ordinary invites still block',()=>{
  const base={...event('away','2026-11-20T00:00:00-05:00','2026-11-21T00:00:00-05:00'),allDay:true};
  for(const fields of [{title:'PTO',isOrganizer:true},{title:'Holiday',isOrganizer:false},{title:'Office Closed - Year-End Closing',isOrganizer:false},{title:'Shutdown',status:'oof',isOrganizer:false},{title:'PTO'}]){
   const raw=snapshot([{...base,...fields}]);
@@ -184,4 +197,3 @@ test('own PTO and shared company closures still remove working time; ordinary in
  assert.deepEqual(P.intervals(snapshot([{...ownPartial,title:'Away',isOrganizer:false}])),{});
  assert.throws(()=>P.validateSnapshot(snapshot([{...base,isOrganizer:'false'}])),/ownership/);
 });
-

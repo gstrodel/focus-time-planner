@@ -3,6 +3,14 @@ const {test}=require("node:test"),assert=require("node:assert/strict");
 const P=require("../planner.js"),L=require("../local-calendar.js");
 const NOW="2026-11-18T12:00:00Z";
 const snapshot=()=>({...P.demo(NOW),source:"outlook-extract"});
+test("all-day reminders arriving on refresh preserve approved focus without conflicts",()=>{
+ const raw=snapshot(),plan=P.createPlan(raw,NOW);P.generate(plan,NOW);
+ const block=plan.sessions.find(s=>s.date==="2026-11-20");block.status="approved";
+ const banner={id:"banner",title:"Focus Friday",allDay:true,status:"busy",kind:"busy",start:"2026-11-20T00:00:00Z",end:"2026-11-21T00:00:00Z"};
+ const result=L.reconcile(plan,{...raw,events:[...raw.events,banner]},NOW);
+ assert.equal(result.conflicts,0);assert.equal(result.plan.sessions.find(s=>s.id===block.id).status,"approved");
+ assert.equal(P.scheduled(result.plan,block.date),240);
+});
 test("Power Automate arrays and body/value wrappers normalize offsets and discard private details",()=>{
   const events=[{id:"a",subject:"Planning",start:"wrong",end:"wrong",startWithTimeZone:"2026-11-18T09:30:00-05:00",endWithTimeZone:"2026-11-18T10:30:00-05:00",showAs:"Busy",isAllDay:false,body:"private",organizer:"private"},
     {id:"b",isCancelled:true},{id:"c",showAs:"workingElsewhere"},{id:"d",responseStatus:{response:"declined"}}];
@@ -133,4 +141,3 @@ test('teammate PTO arriving on refresh preserves approved focus instead of creat
  assert.equal(result.conflicts,0);assert.equal(result.plan.sessions.find(s=>s.id===block.id).status,'approved');
  assert.equal(P.scheduled(result.plan,block.date),240);assert.deepEqual(P.validatePlan(result.plan),result.plan);
 });
-

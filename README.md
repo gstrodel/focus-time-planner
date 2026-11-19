@@ -341,7 +341,7 @@ For raw Outlook events, export `id`, `subject`, `startWithTimeZone`, `endWithTim
 
 Teammates' full-day and partial-day PTO/OOO/vacation/time-off invitations are ignored for meeting load, availability, focus proposals, and the day calendar. Shared company holidays and office closures continue to remove working time. Existing exports and saved plans without ownership metadata retain their previous behavior: titles alone cannot reliably identify whose leave an invitation describes. Add the field, run the flow, and refresh the calendar to apply ownership filtering to existing entries.
 
-Other all-day Busy or Tentative entries still block planning and can count as meetings even though they are hidden from the day-calendar grid. For example, an all-day Busy `All-day hold` entry blocks the workday; it is not recognized as existing focus, which requires the exact title `Focus time` (case insensitive) or explicit `kind: "existing-focus"`. Ignoring a teammate's PTO does not remove that separate availability block.
+All-day entries that are not recognized as your PTO/OOO or a company closure are ignored for meeting load, focus availability, existing-focus totals, and conflict checks, regardless of their Busy, Tentative, Free, or Unknown status. For example, an all-day Busy `Focus Friday` or `All-day hold` reminder does not consume the workday or count as booked focus. Timed focus reservations still count normally. Your time off and shared office closures continue to remove working time, while teammates' personal leave is ignored. This applies to existing snapshots and saved plans as well as new imports; **Generate plan** fills newly available focus time.
 
 Microsoft Graph `start`/`end` objects with explicit UTC timezones also work. Timestamps must carry an offset or explicitly declare UTC. Ambiguous timezone-free timestamps are rejected with instructions to include `startWithTimeZone`/`endWithTimeZone`. Titles matching `Focus time` or explicit `kind: "existing-focus"` identify existing focus. Descriptions, organizer and attendee fields are discarded.
 
@@ -408,6 +408,8 @@ Event timestamps require explicit UTC or numeric offsets. `status` is `busy`, `t
 
 The selected day's **Day calendar** shows timed events and local focus proposals/approvals against a half-hour grid. Boxes match event durations; overlaps appear in separate columns. Titles and times remain readable as literal text, with full labels available on hover or keyboard focus. All-day PTO/OOO appears in banners above the grid and as a striped PTO/OOO card with no focus planning required. Other all-day invites remain hidden in the grid. Out-of-office availability is treated as time off; non-free all-day items titled PTO, OOO, out of office, vacation, time off, holiday, shutdown, office closed, or year-end closing/closure also remove their dates from working time. Free all-day items remain free. All-day midnight dates retain their calendar dates and exclusive end date, including UTC-midnight exports. Free events never block planning or count as meetings. Timed events crossing midnight remain visible on each affected day. The grid starts with work hours and expands for earlier/later timed events; it scrolls on long days and narrow screens.
 
+Working days with no active focus blocks show **No focus planned** in red on their coverage card. PTO/OOO days retain **No focus planning needed** in the normal note color.
+
 The planner uses the snapshot's timezone rather than the computer's timezone, including daylight-saving transitions. An extract cannot prove its own upstream completeness; the producer is responsible for the `complete` assertion.
 
 ## Persistence and limits
@@ -441,4 +443,3 @@ Validation: 41 Node checks pass, covering planning, local-file refresh, export a
 
 
 Calendar coverage cards show the day number, three-letter month, and three-letter weekday. Timed meetings on a day off remain visible for reference but do not count toward workday targets.
-

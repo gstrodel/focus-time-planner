@@ -36,6 +36,15 @@ test('legacy outcome statuses migrate to planning decisions without outcome cont
  const plan=P.createPlan(P.demo());P.generate(plan);plan.sessions[0].status='completed';plan.sessions[1].status='rejected';plan.savedAt=new Date().toISOString();const app=boot();await app.import(plan);assert.equal(app.state().sessions[0].status,'approved');assert.equal(app.state().sessions[1].status,'rejected');assert.equal(app.nodes.insights,undefined);
 });
 const descendants=node=>[node,...node.children.filter(e=>typeof e==='object').flatMap(descendants)];
+test('No focus planned is red, while focus and PTO notes keep their normal styling',()=>{
+ const raw=P.demo(),dates=P.workdays(raw),[empty,focused,off]=dates.slice(1,4);
+ raw.events=[{id:'away',start:off+'T00:00:00Z',end:P.addDays(off,1)+'T00:00:00Z',status:'oof',kind:'busy',allDay:true,title:'PTO',isOrganizer:true}];
+ const plan=P.createPlan(raw);P.addBlock(plan,focused,600,720);plan.savedAt=new Date().toISOString();
+ const app=boot(new Map([['focus-planner-v0.4',JSON.stringify(plan)]]));
+ const note=date=>descendants(descendants(app.nodes.weeks).find(e=>e.dataset.date===date)).find(e=>e.className?.split(' ').includes('day-note'));
+ assert.equal(note(empty).textContent,'No focus planned');assert.equal(note(empty).className,'day-note no-focus');
+ assert.equal(note(focused).className,'day-note');assert.equal(note(off).className,'day-note');
+});
 test('teammate PTO does not appear in coverage, all-day banners or the timed day calendar',async()=>{
  const raw=P.demo(),date=P.workdays(raw)[0],end=P.addDays(date,1);
  raw.events=[true,false].map((allDay,i)=>({id:'teammate-'+i,start:date+'T00:00:00Z',end:end+'T00:00:00Z',status:'oof',kind:'busy',allDay,title:'Colleague PTO',isOrganizer:false}));
@@ -139,4 +148,3 @@ test('coverage cards show month labels, exclude days off from targets and explai
  assert.equal(details.some(e=>e.textContent==='Add more focus time'),false);
  assert.equal(app.state().sessions.some(s=>s.date===date&&P.ACTIVE.has(s.status)),false);
 });
-
