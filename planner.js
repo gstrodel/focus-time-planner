@@ -94,7 +94,7 @@
   function dailyFocusTarget(snapshot,date,byDate=intervals(snapshot)) {
     const load=meetingLoad(snapshot,date,byDate);
     if(!load.workingMinutes)return 0;
-    return load.ratio<CONFIG.maxMeetingRatio?Math.max(240,Math.ceil(load.workingMinutes/2)):CONFIG.dailyTargetMinutes;
+    return load.ratio<=CONFIG.maxMeetingRatio?Math.max(240,Math.ceil(load.workingMinutes/2)):CONFIG.dailyTargetMinutes;
   }
   const hasContinuousFocus = (plan,date) => merge(plan.sessions.filter(s=>s.date===date && ACTIVE.has(s.status))).some(s=>s.end-s.start>=CONFIG.dailyTargetMinutes);
   function available(plan,date,now=new Date().toISOString(),excludeId=null,respectRejected=false) {

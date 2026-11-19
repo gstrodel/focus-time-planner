@@ -91,11 +91,20 @@ test("light meeting days target four hours, inclusive of already scheduled focus
  assert.ok(P.hasContinuousFocus(plan,"2026-11-18"));
  const n=plan.sessions.length;assert.equal(P.generate(plan,NOW),0);assert.equal(plan.sessions.length,n);
 });
-test("meeting-heavy days retain two-hour target; exactly half is not a light day",()=>{
- const raw=snapshot([event("heavy","2026-11-18T14:30:00Z","2026-11-18T18:30:00Z")]);
+test("exactly 50% meetings still requires four hours of focus",()=>{
+ const raw=snapshot([event("half","2026-11-18T14:30:00Z","2026-11-18T18:30:00Z")]);
  assert.equal(P.meetingLoad(raw,"2026-11-18").ratio,0.5);
+ assert.equal(P.dailyFocusTarget(raw,"2026-11-18"),240);
+ const plan=P.createPlan(raw,NOW);P.generate(plan,NOW);
+ assert.equal(P.scheduled(plan,"2026-11-18"),240);
+ assert.equal(P.generate(plan,NOW),0);
+});
+test("over 50% meetings retains two-hour focus target",()=>{
+ const raw=snapshot([event("heavy","2026-11-18T14:30:00Z","2026-11-18T19:30:00Z")]);
+ assert.ok(P.meetingLoad(raw,"2026-11-18").ratio>0.5);
  assert.equal(P.dailyFocusTarget(raw,"2026-11-18"),120);
- const plan=P.createPlan(raw,NOW);P.generate(plan,NOW);assert.equal(P.scheduled(plan,"2026-11-18"),120);
+ const plan=P.createPlan(raw,NOW);P.generate(plan,NOW);
+ assert.equal(P.scheduled(plan,"2026-11-18"),120);
 });
 test("PTO removes work minutes and does not get focus proposals",()=>{
  const raw=snapshot([event("pto","2026-11-18T05:00:00Z","2026-11-19T05:00:00Z","busy","oof")]);
