@@ -36,6 +36,16 @@ test('legacy outcome statuses migrate to planning decisions without outcome cont
  const plan=P.createPlan(P.demo());P.generate(plan);plan.sessions[0].status='completed';plan.sessions[1].status='rejected';plan.savedAt=new Date().toISOString();const app=boot();await app.import(plan);assert.equal(app.state().sessions[0].status,'approved');assert.equal(app.state().sessions[1].status,'rejected');assert.equal(app.nodes.insights,undefined);
 });
 const descendants=node=>[node,...node.children.filter(e=>typeof e==='object').flatMap(descendants)];
+test('teammate PTO does not appear in coverage, all-day banners or the timed day calendar',async()=>{
+ const raw=P.demo(),date=P.workdays(raw)[0],end=P.addDays(date,1);
+ raw.events=[true,false].map((allDay,i)=>({id:'teammate-'+i,start:date+'T00:00:00Z',end:end+'T00:00:00Z',status:'oof',kind:'busy',allDay,title:'Colleague PTO',isOrganizer:false}));
+ const app=boot();await app.import(raw);
+ const card=descendants(app.nodes.weeks).find(e=>e.dataset.date===date);card.click();
+ assert.equal(descendants(card).some(e=>/PTO|OOO/.test(e.textContent)),false);
+ assert.equal(descendants(app.nodes.detailBody).some(e=>/Colleague/.test(e.textContent)),false);
+ assert.ok(app.state().sessions.some(s=>s.date===date));
+ const restored=boot(app.storage);assert.deepEqual(restored.state(),app.state());
+});
 test('calendar export waits for decisions, prompts for location, and preserves local approvals',async()=>{
  let options,written,closed=false;
  const app=boot(new Map(),null,null,{showSaveFilePicker:async opts=>{options=opts;return {createWritable:async()=>({write:async blob=>{written=await blob.text();},close:async()=>{closed=true;}})};}});
@@ -129,3 +139,4 @@ test('coverage cards show month labels, exclude days off from targets and explai
  assert.equal(details.some(e=>e.textContent==='Add more focus time'),false);
  assert.equal(app.state().sessions.some(s=>s.date===date&&P.ACTIVE.has(s.status)),false);
 });
+

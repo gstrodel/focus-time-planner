@@ -15,7 +15,13 @@
   const isDate = key => typeof key === "string" && /^\d{4}-\d{2}-\d{2}$/.test(key) && !isNaN(Date.parse(key+"T12:00:00Z")) && addDays(key,0)===key;
   const isISO = value => typeof value === "string" && /^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/.test(value) && Number.isFinite(Date.parse(value));
   const overlap = (a,b) => a.start < b.end && b.start < a.end;
-  const isTimeOff = event => event.status!=="free" && (event.status==="oof" || event.allDay && /\b(?:pto|ooo|oof|out[ -]of[ -]office|time off|vacation|holiday|shutdown|office closed|year[ -]end clos(?:ing|ure))\b/i.test(event.title||""));
+  const PERSONAL_TIME_OFF = /\b(?:pto|ooo|oof|out[ -]of[ -]office|time off|vacation|annual leave|sick leave)\b/i;
+  const CLOSURE = /\b(?:holiday|shutdown|office closed|year[ -]end clos(?:ing|ure))\b/i;
+  // Company closures can be shared invites; a colleague's personal absence is informational.
+  const isOtherPersonTimeOff = event => event.isOrganizer===false &&
+    (PERSONAL_TIME_OFF.test(event.title||"") || event.status==="oof" && !CLOSURE.test(event.title||""));
+  const isTimeOff = event => !isOtherPersonTimeOff(event) && event.status!=="free" &&
+    (event.status==="oof" || event.allDay && (PERSONAL_TIME_OFF.test(event.title||"") || CLOSURE.test(event.title||"")));
   function localParts(value, timeZone) {
     const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", {timeZone,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23"}).formatToParts(new Date(value)).map(x=>[x.type,x.value]));
     return {date:`${p.year}-${p.month}-${p.day}`, minute:+p.hour*60 + +p.minute, seconds:+p.second};
@@ -31,13 +37,14 @@
     const events = input.events.map(e=>{
       if (!e || typeof e.id!=="string" || !e.id || ids.has(e.id) || !isISO(e.start) || !isISO(e.end) || Date.parse(e.end)<=Date.parse(e.start) || !["busy","tentative","oof","unknown","free"].includes(e.status) || !["busy","existing-focus"].includes(e.kind)) throw Error("An event is invalid or duplicated. Import stopped; your saved plan is unchanged.");
       ids.add(e.id);
+      if(e.isOrganizer!==undefined && typeof e.isOrganizer!=="boolean")throw Error("Invalid event ownership flag.");
       const text=(value,limit)=>{
         if(value===undefined || value===null)return "";
         if(typeof value!=="string" || value.length>limit)throw Error("Invalid meeting title.");
         return value;
       };
       return {id:e.id,start:e.start,end:e.end,status:e.status,kind:e.kind,allDay:!!e.allDay,
-        title:text(e.title,1000)};
+        title:text(e.title,1000),...(typeof e.isOrganizer==="boolean"?{isOrganizer:e.isOrganizer}:{})};
     });
     return {schema:input.schema,version:1,source:input.source==="demo"?"demo":"outlook-extract",timeZone:input.timeZone,capturedAt:input.capturedAt,windowStart:input.windowStart,windowEnd:input.windowEnd,complete:true,events};
   }
@@ -47,6 +54,7 @@
   function intervals(snapshot, {includeFree=false}={}) {
     const byDate = {};
     for (const event of snapshot.events) {
+      if(isOtherPersonTimeOff(event))continue;
       if(event.status==="free"&&!includeFree)continue;
       const a=localParts(event.start,snapshot.timeZone), b=localParts(event.end,snapshot.timeZone);
       // All-day midnight exports carry calendar dates, including UTC date-only encodings.
@@ -172,7 +180,8 @@
       events.push({id:"demo-"+i,start:date+"T15:00:00Z",end:date+"T16:00:00Z",status:"busy",kind:"busy",allDay:false});}
     return {schema:"focus-planner-snapshot",version:1,source:"demo",timeZone,capturedAt:now,windowStart:start,windowEnd:addDays(start,42),complete:true,events};
   }
-  return {CONFIG,ACTIVE,addDays,localParts,overlap,isTimeOff,validateSnapshot,validatePlan,workdays,intervals,merge,gaps,createPlan,scheduled,meetingLoad,dailyFocusTarget,hasContinuousFocus,available,addBlock,extendBlock,generate,demo};
+  return {CONFIG,ACTIVE,addDays,localParts,overlap,isTimeOff,isOtherPersonTimeOff,validateSnapshot,validatePlan,workdays,intervals,merge,gaps,createPlan,scheduled,meetingLoad,dailyFocusTarget,hasContinuousFocus,available,addBlock,extendBlock,generate,demo};
 });
+
 
 
