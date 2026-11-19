@@ -30,6 +30,15 @@
       return text;
     };
     const truth=v=>v===true||v==="true";
+    const ownership=e=>{
+      const explicit=e?.isOrganizer??e?.is_organizer;
+      if(explicit===true||explicit==="true")return {isOrganizer:true};
+      if(explicit===false||explicit==="false")return {isOrganizer:false};
+      const response=String(e?.responseStatus?.response??e?.response_status?.response??e?.responseType??"").trim().toLowerCase();
+      if(response==="organizer")return {isOrganizer:true};
+      if(["accepted","tentativelyaccepted","tentative","declined","notresponded"].includes(response))return {isOrganizer:false};
+      return {};
+    };
     return P.validateSnapshot({schema:"focus-planner-snapshot",version:1,source:"outlook-extract",complete:true,
       capturedAt,timeZone,windowStart,windowEnd,
       events:events.filter(e=>!truth(e?.isCancelled??e?.is_cancelled)&&!truth(e?.isCanceled)&&
@@ -41,7 +50,7 @@
         return {id:e?.id,start:stamp(e,"start"),end:stamp(e,"end"),
           status:["busy","tentative","oof","free","unknown"].includes(status)?status:"unknown",
           kind:e?.kind==="existing-focus"||/^focus time$/i.test(String(e?.subject??e?.title??"").trim())?"existing-focus":"busy",
-          allDay:truth(e?.isAllDay??e?.is_all_day??e?.allDay),title:e?.subject??e?.title??""};
+          allDay:truth(e?.isAllDay??e?.is_all_day??e?.allDay),title:e?.subject??e?.title??"",...ownership(e)};
       })});
   }
   function reconcile(previous,snapshot,now=new Date().toISOString()){
@@ -138,3 +147,4 @@
   }
   return {FILE,snapshotFromJSON,reconcile,Connection};
 });
+

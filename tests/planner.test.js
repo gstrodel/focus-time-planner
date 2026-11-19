@@ -154,3 +154,34 @@ test('all-day time-off titles require non-free availability and timed title ment
  const timed={...event('review','2026-11-19T15:00:00Z','2026-11-19T16:00:00Z'),title:'Holiday planning meeting'};
  assert.equal(P.meetingLoad(snapshot([timed]),'2026-11-19').meetingMinutes,60);
 });
+
+test('Nov 20 teammate PTO is ignored for full and partial days, including busy and OOO invites',()=>{
+ for(const allDay of [true,false])for(const status of ['busy','tentative','oof','unknown','free']){
+  const away={...event('colleague','2026-11-20T00:00:00-05:00',allDay?'2026-11-21T00:00:00-05:00':'2026-11-20T13:00:00-05:00','busy',status),allDay,title:'Colleague PTO',isOrganizer:false};
+  const meeting=event('meeting','2026-11-20T15:00:00Z','2026-11-20T16:00:00Z');
+  const raw=snapshot([away,meeting]),plan=P.createPlan(raw,NOW);P.generate(plan,NOW);
+  assert.equal(P.isTimeOff(away),false);
+  assert.deepEqual(P.intervals(raw,{includeFree:true})['2026-11-20'].map(e=>e.id),['meeting']);
+  assert.deepEqual(P.meetingLoad(plan.snapshot,'2026-11-20'),{workingMinutes:480,meetingMinutes:60,ratio:1/8});
+  assert.equal(P.scheduled(plan,'2026-11-20'),240);
+  const restored=P.validatePlan(JSON.parse(JSON.stringify(plan)));
+  assert.deepEqual(restored,plan);assert.equal(restored.snapshot.events[0].isOrganizer,false);
+ }
+});
+
+test('own PTO and shared company closures still remove working time; ordinary invites still block',()=>{
+ const base={...event('away','2026-11-20T00:00:00-05:00','2026-11-21T00:00:00-05:00'),allDay:true};
+ for(const fields of [{title:'PTO',isOrganizer:true},{title:'Holiday',isOrganizer:false},{title:'Office Closed - Year-End Closing',isOrganizer:false},{title:'Shutdown',status:'oof',isOrganizer:false},{title:'PTO'}]){
+  const raw=snapshot([{...base,...fields}]);
+  assert.equal(P.meetingLoad(raw,'2026-11-20').workingMinutes,0);
+ }
+ const ownPartial={...base,allDay:false,start:'2026-11-20T09:30:00-05:00',end:'2026-11-20T13:00:00-05:00',title:'PTO',status:'oof',isOrganizer:true};
+ assert.equal(P.meetingLoad(snapshot([ownPartial]),'2026-11-20').workingMinutes,270);
+ const meeting={...ownPartial,title:'Planning review',status:'busy',isOrganizer:false};
+ assert.equal(P.meetingLoad(snapshot([meeting]),'2026-11-20').meetingMinutes,210);
+ // Personal absence wins over a holiday word in the same title.
+ assert.deepEqual(P.intervals(snapshot([{...base,title:'Colleague PTO over the holiday',isOrganizer:false}]),{includeFree:true}),{});
+ assert.deepEqual(P.intervals(snapshot([{...ownPartial,title:'Away',isOrganizer:false}])),{});
+ assert.throws(()=>P.validateSnapshot(snapshot([{...base,isOrganizer:'false'}])),/ownership/);
+});
+

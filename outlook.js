@@ -40,7 +40,7 @@ window.FocusOutlook = (() => {
     if(location.protocol==="file:") throw Error("Microsoft sign-in needs http://localhost:8000, not file://. See README.");
     const token=await getToken();
     // Bounded calendarView expands recurring event occurrences.
-    const params=new URLSearchParams({startDateTime:start.toISOString(),endDateTime:end.toISOString(),$select:"id,start,end,isAllDay,showAs,isCancelled,subject,responseStatus", $top:"200"});
+    const params=new URLSearchParams({startDateTime:start.toISOString(),endDateTime:end.toISOString(),$select:"id,start,end,isAllDay,showAs,isCancelled,subject,responseStatus,isOrganizer", $top:"200"});
     let url="https://graph.microsoft.com/v1.0/me/calendarView?"+params.toString();
     const events=[];let pages=0;
     while(url){

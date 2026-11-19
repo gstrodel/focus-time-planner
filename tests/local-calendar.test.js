@@ -107,3 +107,30 @@ test('a newly imported all-day closure removes approved blocks from active plann
  assert.equal(P.scheduled(result.plan,block.date),0);assert.equal(P.dailyFocusTarget(next,block.date),0);
  assert.deepEqual(P.validatePlan(result.plan),result.plan);
 });
+
+test('Power Automate and Graph ownership survive import without retaining organizer identities',()=>{
+ const base={id:'pto',subject:'PTO',startWithTimeZone:'2026-11-20T00:00:00-05:00',endWithTimeZone:'2026-11-21T00:00:00-05:00',showAs:'busy',isAllDay:true,organizer:{emailAddress:{address:'private@example.test'}}};
+ for(const fields of [{responseType:'accepted'},{responseType:'tentativelyAccepted'},{responseType:'notResponded'},{responseStatus:{response:'accepted'}},{response_status:{response:'accepted'}},{isOrganizer:false},{is_organizer:'false'},{isOrganizer:false,responseType:'organizer'}]){
+  const raw=L.snapshotFromJSON([ {...base,...fields} ],NOW);
+  assert.equal(raw.events[0].isOrganizer,false);assert.equal('organizer' in raw.events[0],false);
+  assert.equal(P.meetingLoad(raw,'2026-11-20').workingMinutes,480);
+ }
+ for(const fields of [{responseType:'organizer'},{responseStatus:{response:'organizer'}},{isOrganizer:true},{isOrganizer:'true',responseType:'accepted'}]){
+  const raw=L.snapshotFromJSON([{...base,...fields}],NOW);
+  assert.equal(raw.events[0].isOrganizer,true);assert.equal(P.meetingLoad(raw,'2026-11-20').workingMinutes,0);
+ }
+ for(const fields of [{},{responseType:null},{responseType:'none'},{responseType:'unexpected'}]){
+  const raw=L.snapshotFromJSON([{...base,...fields}],NOW);
+  assert.equal('isOrganizer' in raw.events[0],false);assert.equal(P.meetingLoad(raw,'2026-11-20').workingMinutes,0);
+ }
+});
+
+test('teammate PTO arriving on refresh preserves approved focus instead of creating conflicts',()=>{
+ const raw=snapshot(),plan=P.createPlan(raw,NOW);P.generate(plan,NOW);
+ const block=plan.sessions.find(s=>s.date==='2026-11-20');block.status='approved';
+ const away={id:'colleague',title:'Colleague PTO',allDay:true,status:'oof',kind:'busy',isOrganizer:false,start:'2026-11-20T00:00:00-05:00',end:'2026-11-21T00:00:00-05:00'};
+ const result=L.reconcile(plan,{...raw,events:[...raw.events,away]},NOW);
+ assert.equal(result.conflicts,0);assert.equal(result.plan.sessions.find(s=>s.id===block.id).status,'approved');
+ assert.equal(P.scheduled(result.plan,block.date),240);assert.deepEqual(P.validatePlan(result.plan),result.plan);
+});
+

@@ -4,13 +4,13 @@ An offline, browser-based six-week focus planner using an Outlook calendar **ext
 
 ## Recreate the Power Automate calendar export
 
-The **current five-step flow** below is transcribed from the trigger/action Code view definitions Gordon supplied. It reads Outlook every 30 minutes and replaces `/SuperlistSync/calendar_events.json` in OneDrive for Business. The OneDrive desktop client syncs that file to Windows for Focus Planner to read. The later **Recommended flow for complete six-week imports** section is a proposed revision, not the deployed configuration. No live flow was changed or run while documenting these definitions.
+The **current five-step flow** below combines the trigger/action Code view definitions Gordon supplied with the Select mapping updates he made on November 19, 2026. It reads Outlook every 30 minutes and replaces `/SuperlistSync/calendar_events.json` in OneDrive for Business. The OneDrive desktop client syncs that file to Windows for Focus Planner to read. The revised export was checked with the updated importer: event timestamps had explicit timezone offsets, and import, plan generation, and saved-plan validation succeeded. The flow's latest full definition was not re-inspected. The later **Recommended flow for complete six-week imports** section remains a proposed revision, not the deployed configuration.
 
 ### Current flow: prerequisites and conventions
 
 Sign in to [Power Automate](https://make.powerautomate.com/) with your work account and connect **Office 365 Outlook** and **OneDrive for Business**. Create the cloud folder `/SuperlistSync` and an existing UTF-8 file named `calendar_events.json` (a new file can initially contain `{}`; this placeholder is not importable). Do not replace an existing working extract with the placeholder. `Update file` needs a file that already exists.
 
-The file syncs on Gordon's computer to `C:\Users\UBC3554\OneDrive - Takeda\SuperlistSync\calendar_events.json`. Other users must use their own OneDrive location. Cloud actions use the OneDrive picker, not a Windows path; keep OneDrive running and the file available locally.
+For example, the file syncs on Windows to `C:\Users\<username>\OneDrive - <organization>\SuperlistSync\calendar_events.json`. Other users must use their own OneDrive location. Cloud actions use the OneDrive picker, not a Windows path; keep OneDrive running and the file available locally.
 
 Build the steps in the order below. Add expressions through **Expression / fx** without the leading `@` shown in Code view. Keep the internal action names `Get_calendar_view_of_events_(V3)`, `Select`, and `Compose`, because later expressions reference them. If the designer generates different names, update the expressions accordingly. Each action after the calendar retrieval runs only when its preceding action **Succeeded**.
 
@@ -51,19 +51,20 @@ Add **Data Operation → Select**, retaining the name `Select`. Set **From** to:
 body('Get_calendar_view_of_events_(V3)')?['value']
 ```
 
-Enter these seven map keys as text and their values as expressions:
+Enter these eight map keys as text and their values as expressions. Keep the output keys `start` and `end`, but use the connector's timezone-bearing fields as their values:
 
 | JSON key | Value expression |
 | --- | --- |
 | `id` | `item()?['id']` |
-| `start` | `item()?['start']` |
-| `end` | `item()?['end']` |
+| `start` | `item()?['startWithTimeZone']` |
+| `end` | `item()?['endWithTimeZone']` |
 | `subject` | `item()?['subject']` |
 | `showAs` | `item()?['showAs']` |
 | `isAllDay` | `item()?['isAllDay']` |
 | `isCancelled` | `item()?['isCancelled']` |
+| `responseType` | `item()?['responseType']` |
 
-This preserves titles, availability, all-day flags, and cancellation flags while omitting descriptions, organizers, attendees, and meeting links. It does not export the event timezone or response status. All-day events remain in the extract; the app hides them only in the day-calendar display.
+This preserves titles, availability, all-day flags, cancellation flags, explicit timezone offsets, and response status while omitting descriptions, organizer identities, attendees, and meeting links. `responseType` distinguishes the calendar owner's events (`organizer`) from received invitations. Do not default a missing response to an attendee value. Keep all-day events in the extract: the app uses the owner's PTO and shared closures for availability, ignores teammates' personal time off, and hides other all-day entries from the day-calendar grid.
 
 ### Current flow, step 4: Compose
 
@@ -81,7 +82,7 @@ setProperty(
 )
 ```
 
-The output is an object with `generatedAt` and an `events` array. This synthetic example illustrates the connector's timezone-free `start` / `end` fields; it is an illustration of the current output, **not a valid import fixture for current main**:
+The output is an object with `generatedAt` and an `events` array. This synthetic example shows the corrected mapping, including explicit UTC offsets and response status:
 
 ```json
 {
@@ -89,12 +90,13 @@ The output is an object with `generatedAt` and an `events` array. This synthetic
   "events": [
     {
       "id": "synthetic-current-event-1",
-      "start": "2026-11-19T15:00:00.0000000",
-      "end": "2026-11-19T16:00:00.0000000",
+      "start": "2026-11-19T15:00:00+00:00",
+      "end": "2026-11-19T16:00:00+00:00",
       "subject": "Example meeting",
       "showAs": "busy",
       "isAllDay": false,
-      "isCancelled": false
+      "isCancelled": false,
+      "responseType": "accepted"
     }
   ]
 }
@@ -114,20 +116,20 @@ Save, run a manual test, and check each action in run history. Confirm the inten
 
 ### Current flow: differences from the app's import requirements
 
-| Area | Supplied flow | Consequence / recommended revision |
+| Area | Current flow / observed output | Consequence / recommended revision |
 | --- | --- | --- |
-| Event timestamps | Select copies `start` and `end`, omitting timezone metadata | The connector documents these as timezone-free. Current main rejects such timestamps for retained events; map `startWithTimeZone` and `endWithTimeZone` instead. Never append a guessed `Z` or offset. |
+| Event timestamps | Select now maps `startWithTimeZone` and `endWithTimeZone` into `start` and `end` | Verified explicit offsets throughout the revised export. Keep these mappings; never append a guessed `Z` or offset to timezone-free values. |
 | Capture time | Compose writes `generatedAt` | The folder importer recognizes `capturedAt`, not `generatedAt`, and falls back to file modification time when absent. Use `capturedAt` in the revised wrapper. |
 | Window | UTC midnight to `utcNow() + 42 days`; no explicit bounds exported | The folder importer otherwise assumes 42 Eastern calendar days from the file date. Freeze Eastern local dates and export `windowStart`, exclusive `windowEnd`, and `timeZone`. |
 | Completeness | Single request; Select retains only `value` | Microsoft documents a 256-event request limit. Later pages can be lost, and Select also discards any next-link metadata the importer could use to detect this. Retrieve all pages before publishing; never assert completeness for the single response without verification. |
-| Declined invitations | Neither `responseType` nor `responseStatus` is exported | The importer cannot identify declined invitations from this mapping. Add `responseType` to the revised Select map. |
+| Invitation ownership and declined invitations | Select now includes `responseType` | Verified throughout the revised export. The updated PTO filter ignores teammates' full-day and partial-day leave while retaining the owner's leave and shared closures. Older exports without ownership metadata retain their previous behavior. |
 | Overlapping runs | No concurrency setting in the supplied trigger | The recommended design serializes runs to reduce stale overwrites. |
 
-These findings come from the supplied definitions, the connector reference, and the current repository importer. No real event payload or live run was inspected. A calendar with fewer than 256 events still needs timestamp and date-boundary checks.
+These findings combine the supplied definitions, the connector reference, and a read-only check of the updated OneDrive export with the repository importer. No live flow was edited or triggered by this check. The observed payload imported successfully; that result alone does not prove complete upstream pagination or exact six-week query bounds.
 
 ## Recommended flow for complete six-week imports
 
-The following design revises the supplied flow to match the current import contract. It is documented separately so the original five steps remain reproducible. It is **not deployed or tenant-tested**. Build and test it before connecting the app: it requests a complete, rolling **42-calendar-day** extract every **30 minutes**, starting at midnight today in Eastern Time.
+The following design extends the current five-step flow with explicit bounds, pagination, and completeness checks. It is **not deployed or tenant-tested**. Build and test it before connecting the app: it requests a complete, rolling **42-calendar-day** extract every **30 minutes**, starting at midnight today in Eastern Time.
 
 The instructions use one primary work calendar. Holidays/PTO must exist in that calendar to be included; separate holiday or shared calendars are not automatically combined. When revising the original, replace its retrieval/mapping/wrapper steps with this design rather than running both versions against the same output file.
 
@@ -141,7 +143,7 @@ In OneDrive for Business, create a folder named `SuperlistSync`. For a new insta
 | --- | --- |
 | Cloud folder, relative to your OneDrive root | `/SuperlistSync` |
 | Output filename, reused on every run | `calendar_events.json` |
-| Gordon's synced Windows file | `C:\Users\UBC3554\OneDrive - Takeda\SuperlistSync\calendar_events.json` |
+| Example synced Windows file | `C:\Users\<username>\OneDrive - <organization>\SuperlistSync\calendar_events.json` |
 
 Use the cloud file picker in Power Automate. The Windows `C:\...` path belongs only in the local setup; a cloud flow cannot write to that path directly. Other users should use their own synced OneDrive location. Keep OneDrive running and mark the file **Always keep on this device**.
 
@@ -207,7 +209,7 @@ Inside `FetchAllPages`, add the following actions in order:
    | `showAs` | `coalesce(item()?['showAs'], 'unknown')` |
    | `isAllDay` | `coalesce(item()?['isAllDay'], false)` |
    | `isCancelled` | `coalesce(item()?['isCancelled'], false)` |
-   | `responseType` | `coalesce(item()?['responseType'], 'notResponded')` |
+   | `responseType` | `item()?['responseType']` |
 
    Preserve the timestamps with their explicit `Z` or numeric offset. Do not substitute the timezone-free `start` / `end` fields or append a guessed offset. The Select map omits descriptions, organizer addresses, attendee lists, and meeting links. The app uses the subject `Focus Time` (case insensitive) to recognize existing focus reservations, and uses availability/response fields to handle free, cancelled, declined, and working-elsewhere events. Keep all-day events; hiding them in the day view is the app's responsibility.
 
@@ -296,7 +298,7 @@ Microsoft references: [Outlook connector and paging limits](https://learn.micros
 ## Test it
 
 1. Download the app files together (`index.html`, `planner.js`, `local-calendar.js`, `ical.js`, `app.js`). Open `index.html` in Edge or Chrome, or serve the folder with `py -m http.server 8000` and open `http://localhost:8000/`.
-2. Click **Connect calendar folder** and choose `C:\Users\UBC3554\OneDrive - Takeda\SuperlistSync`. The app reads `calendar_events.json` immediately and checks every minute while open. You can also use **Import** for a one-time calendar extract or saved plan. Proposals are generated automatically.
+2. Click **Connect calendar folder** and choose `C:\Users\<username>\OneDrive - <organization>\SuperlistSync`. The app reads `calendar_events.json` immediately and checks every minute while open. You can also use **Import** for a one-time calendar extract or saved plan. Proposals are generated automatically.
 3. Select a day and approve or reject blocks. **Approve all proposals** approves future blocks locally. Use **Add more focus time** to select an available window, start time and duration, including longer than two hours. Use **Extend 30 min** to lengthen a future local block; the revised block returns to proposed status for approval.
 4. Every change saves automatically to this browser. **Save plan** explicitly saves it again. **Download plan** exports the extract, planning decisions together as JSON. Import that file to resume in another browser or device.
 5. When upcoming proposals are approved or rejected and upcoming conflicts dismissed, click **Export to Outlook (.ics)**. Choose a save location, then import the file into your main Outlook work calendar as described below.
@@ -320,7 +322,7 @@ No real calendar extract or generated personal plan belongs in this repository. 
 For Gordon's Power Automate flow, select this **folder** in Edge or Chrome:
 
 ```text
-C:\Users\UBC3554\OneDrive - Takeda\SuperlistSync
+C:\Users\<username>\OneDrive - <organization>\SuperlistSync
 ```
 
 The app reads `calendar_events.json` in that folder. Browsers require the folder picker; JavaScript cannot silently open a Windows path. Only read permission is requested. The file is looked up by name on every check, so atomic OneDrive replacements work. Keep OneDrive running and the file available locally. A local HTML file or localhost may be used; enterprise browser policies can disable folder access. Manual import remains available.
@@ -335,7 +337,13 @@ Valid local approvals, proposals and rejections survive a refresh within the new
 
 The connected file can contain the existing Focus Planner snapshot, an event array, `{ "value": [...] }`, `{ "events": [...] }`, or an action-output `{ "body": { "value": [...] } }` wrapper. A stringified `body` is accepted. Saved Focus Planner plans use the separate **Import** control.
 
-For raw Outlook events, export `id`, `subject`, `startWithTimeZone`, `endWithTimeZone`, `showAs`, `isAllDay`, and `isCancelled`; response status helps exclude declined invitations. Microsoft Graph `start`/`end` objects with explicit UTC timezones also work. Timestamps must carry an offset or explicitly declare UTC. Ambiguous timezone-free timestamps are rejected with instructions to include `startWithTimeZone`/`endWithTimeZone`. Titles matching `Focus time` or explicit `kind: "existing-focus"` identify existing focus. Descriptions, organizer and attendee fields are discarded.
+For raw Outlook events, export `id`, `subject`, `startWithTimeZone`, `endWithTimeZone`, `showAs`, `isAllDay`, `isCancelled`, and `responseType`. In Power Automate's **Select**, add `responseType` with the expression `item()?['responseType']`. The response distinguishes the calendar owner's events (`organizer`) from received invitations and excludes declined invitations. Do not default missing responses to an attendee value. Microsoft Graph `responseStatus.response` and an explicit boolean `isOrganizer` are also supported; `isOrganizer` takes precedence. Only the resulting optional `isOrganizer` boolean is retained, not organizer names or addresses.
+
+Teammates' full-day and partial-day PTO/OOO/vacation/time-off invitations are ignored for meeting load, availability, focus proposals, and the day calendar. Shared company holidays and office closures continue to remove working time. Existing exports and saved plans without ownership metadata retain their previous behavior: titles alone cannot reliably identify whose leave an invitation describes. Add the field, run the flow, and refresh the calendar to apply ownership filtering to existing entries.
+
+Other all-day Busy or Tentative entries still block planning and can count as meetings even though they are hidden from the day-calendar grid. For example, an all-day Busy `All-day hold` entry blocks the workday; it is not recognized as existing focus, which requires the exact title `Focus time` (case insensitive) or explicit `kind: "existing-focus"`. Ignoring a teammate's PTO does not remove that separate availability block.
+
+Microsoft Graph `start`/`end` objects with explicit UTC timezones also work. Timestamps must carry an offset or explicitly declare UTC. Ambiguous timezone-free timestamps are rejected with instructions to include `startWithTimeZone`/`endWithTimeZone`. Titles matching `Focus time` or explicit `kind: "existing-focus"` identify existing focus. Descriptions, organizer and attendee fields are discarded.
 
 The upstream flow must export the complete 42-day **calendar view**, expanding recurring occurrences and collecting every page. Pagination links or `complete: false` are rejected. Without explicit snapshot metadata, the app assumes the flow's asserted full 42-day coverage beginning on the file modification date in Eastern Time. Include `capturedAt`, `timeZone`, `windowStart`, and exclusive `windowEnd` around an `events`/`value` array if the flow uses different bounds. A bare event array cannot independently prove coverage or freshness; the file modification timestamp is only a fallback. Explicit metadata is preferred.
 
@@ -396,7 +404,7 @@ The upstream extract must include **all** relevant events in the window, includi
 }
 ```
 
-Event timestamps require explicit UTC or numeric offsets. `status` is `busy`, `tentative`, `oof`, `unknown`, or `free`; `kind` is `busy` or `existing-focus`. Local pseudonymous IDs suffice. Optional `title` and `allDay` are retained. Meeting descriptions and organizer metadata are discarded when importing an extract or saved plan, including older backups. Restored browser plans are saved back without those fields while retaining planning decisions. New extracts should omit meeting descriptions, organizers and attendee lists.
+Event timestamps require explicit UTC or numeric offsets. `status` is `busy`, `tentative`, `oof`, `unknown`, or `free`; `kind` is `busy` or `existing-focus`. Local pseudonymous IDs suffice. Optional `title`, `allDay`, and boolean `isOrganizer` are retained. Omit `isOrganizer` when ownership is unknown; do not encode it as a string in normalized snapshots. Meeting descriptions and organizer identities are discarded when importing an extract or saved plan, including older backups. Restored browser plans are saved back without those fields while retaining planning decisions. New extracts should omit meeting descriptions, organizers and attendee lists.
 
 The selected day's **Day calendar** shows timed events and local focus proposals/approvals against a half-hour grid. Boxes match event durations; overlaps appear in separate columns. Titles and times remain readable as literal text, with full labels available on hover or keyboard focus. All-day PTO/OOO appears in banners above the grid and as a striped PTO/OOO card with no focus planning required. Other all-day invites remain hidden in the grid. Out-of-office availability is treated as time off; non-free all-day items titled PTO, OOO, out of office, vacation, time off, holiday, shutdown, office closed, or year-end closing/closure also remove their dates from working time. Free all-day items remain free. All-day midnight dates retain their calendar dates and exclusive end date, including UTC-midnight exports. Free events never block planning or count as meetings. Timed events crossing midnight remain visible on each affected day. The grid starts with work hours and expands for earlier/later timed events; it scrolls on long days and narrow screens.
 
@@ -433,3 +441,4 @@ Validation: 41 Node checks pass, covering planning, local-file refresh, export a
 
 
 Calendar coverage cards show the day number, three-letter month, and three-letter weekday. Timed meetings on a day off remain visible for reference but do not count toward workday targets.
+
