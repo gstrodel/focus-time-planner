@@ -91,6 +91,11 @@
     const meetingMinutes=work.reduce((n,s)=>n+merge(meetings,s.start,s.end).reduce((m,e)=>m+e.end-e.start,0),0);
     return {workingMinutes,meetingMinutes,ratio:workingMinutes?meetingMinutes/workingMinutes:null};
   }
+  function dailyFocusTarget(snapshot,date,byDate=intervals(snapshot)) {
+    const load=meetingLoad(snapshot,date,byDate);
+    if(!load.workingMinutes)return 0;
+    return load.ratio<=CONFIG.maxMeetingRatio?Math.max(240,Math.ceil(load.workingMinutes/2)):CONFIG.dailyTargetMinutes;
+  }
   const hasContinuousFocus = (plan,date) => merge(plan.sessions.filter(s=>s.date===date && ACTIVE.has(s.status))).some(s=>s.end-s.start>=CONFIG.dailyTargetMinutes);
   function available(plan,date,now=new Date().toISOString(),excludeId=null,respectRejected=false) {
     const today=localParts(now,plan.snapshot.timeZone);
@@ -112,14 +117,17 @@
   }
   function generate(plan, now=new Date().toISOString()) {
     let count=0;
+    const byDate=intervals(plan.snapshot);
     for(const date of workdays(plan.snapshot)) {
-      let need=Math.max(0,CONFIG.dailyTargetMinutes-scheduled(plan,date));
+      const target=dailyFocusTarget(plan.snapshot,date,byDate);
+      if(!target)continue;
       const options=()=>available(plan,date,now,null,true).sort((a,b)=>(a.start<720?0:1)-(b.start<720?0:1)||a.start-b.start);
-      // Secure a continuous two-hour block before filling smaller gaps.
+      // Secure a continuous two-hour block, then continue filling the day's target.
       if(!hasContinuousFocus(plan,date)) {
         const whole=options().find(g=>g.end-g.start>=CONFIG.dailyTargetMinutes);
-        if(whole){addBlock(plan,date,whole.start,whole.start+CONFIG.dailyTargetMinutes,now);count++;continue;}
+        if(whole){addBlock(plan,date,whole.start,whole.start+CONFIG.dailyTargetMinutes,now);count++;}
       }
+      let need=Math.max(0,target-scheduled(plan,date));
       while(need>=CONFIG.minBlockMinutes) {
         const best=options()[0];if(!best)break;
         let length=Math.min(best.end-best.start,need);
@@ -158,7 +166,7 @@
       events.push({id:"demo-"+i,start:date+"T15:00:00Z",end:date+"T16:00:00Z",status:"busy",kind:"busy",allDay:false});}
     return {schema:"focus-planner-snapshot",version:1,source:"demo",timeZone,capturedAt:now,windowStart:start,windowEnd:addDays(start,42),complete:true,events};
   }
-  return {CONFIG,ACTIVE,addDays,localParts,overlap,validateSnapshot,validatePlan,workdays,intervals,merge,gaps,createPlan,scheduled,meetingLoad,hasContinuousFocus,available,addBlock,extendBlock,generate,demo};
+  return {CONFIG,ACTIVE,addDays,localParts,overlap,validateSnapshot,validatePlan,workdays,intervals,merge,gaps,createPlan,scheduled,meetingLoad,dailyFocusTarget,hasContinuousFocus,available,addBlock,extendBlock,generate,demo};
 });
 
 

@@ -50,13 +50,14 @@
     for(const date of days) {
       if(!group || new Date(date+"T12:00:00Z").getUTCDay()===1){group=document.createElement("div");group.className="week";$("weeks").append(group);}
       const continuous=P.hasContinuousFocus(plan,date),minutes=P.scheduled(plan,date),sessions=plan.sessions.filter(s=>s.date===date);
+      const target=P.dailyFocusTarget(snapshot,date,busy);
       const highMeetings=loads[date].ratio!==null&&loads[date].ratio>P.CONFIG.maxMeetingRatio;
       const btn=document.createElement("button");btn.type="button";btn.dataset.date=date;
       btn.className="day"+(date===selected?" selected":"")+(!continuous||highMeetings?" unavailable":"")+(date<today?" past":"");
-      btn.setAttribute("aria-label",`${label(date)}: ${hours(minutes)} focus, ${hours(Math.max(0,120-minutes))} shortfall`);
+      btn.setAttribute("aria-label",`${label(date)}: ${hours(minutes)} focus, ${hours(Math.max(0,target-minutes))} shortfall`);
       const name=document.createElement("div");name.className="date";name.textContent=label(date);
       const total=document.createElement("div");total.className="hours";total.textContent=hours(minutes)+" planned";
-      const sub=document.createElement("div");sub.className="sub";sub.textContent=(continuous?"2h minimum covered":minutes>=120?"Needs 2h continuous":hours(120-minutes)+" below minimum")+(highMeetings?" · Meetings exceed 50%":"")+(sessions.some(s=>s.status==="conflicted")?" · Review conflict":"");
+      const sub=document.createElement("div");sub.className="sub";sub.textContent=(target===0?"Out of office":minutes<target?hours(target-minutes)+" below "+hours(target)+" target":!continuous?"Needs 2h continuous":hours(target)+" target covered")+(highMeetings?" · Meetings exceed 50%":"")+(sessions.some(s=>s.status==="conflicted")?" · Review conflict":"");
       const chips=document.createElement("div");chips.className="chips";
       for(const s of sessions.filter(s=>P.ACTIVE.has(s.status))){const chip=document.createElement("span");chip.className="chip "+(s.status==="proposed"?"pending":s.status==="existing"?"calendar":"booked");chip.title=s.status;chips.append(chip);}
       btn.append(name,total,sub,chips);btn.addEventListener("click",()=>{selected=date;render();});group.append(btn);
@@ -65,7 +66,7 @@
     $("detailTitle").textContent=label(selected)+" · "+zoneLabel;
     const details=$("detailBody"),sessions=plan.sessions.filter(s=>s.date===selected&&(P.ACTIVE.has(s.status)||s.status==="conflicted")).sort((a,b)=>a.start-b.start);
     const load=loads[selected],summary=document.createElement("p");summary.className="hint";
-    summary.textContent=load.workingMinutes?`Meetings: ${hours(load.meetingMinutes)} / ${hours(load.workingMinutes)} (${Math.round(load.ratio*100)}%; target ≤50%). Continuous 2h focus: ${P.hasContinuousFocus(plan,selected)?"planned":"not yet secured"}.` : "No working time in the 9:30 AM–5:30 PM meeting window; marked out of office.";
+    summary.textContent=load.workingMinutes?`Meetings: ${hours(load.meetingMinutes)} / ${hours(load.workingMinutes)} (${Math.round(load.ratio*100)}%; target ≤50%). Focus target: ${hours(P.dailyFocusTarget(snapshot,selected,busy))}. Continuous 2h focus: ${P.hasContinuousFocus(plan,selected)?"planned":"not yet secured"}.` : "No working time in the 9:30 AM–5:30 PM meeting window; marked out of office.";
     details.append(summary);
     if(!sessions.length){const p=document.createElement("p");p.textContent="No focus blocks yet. Generate proposals to find available time.";details.append(p);}
     for(const s of sessions){
