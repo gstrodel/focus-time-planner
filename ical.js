@@ -12,7 +12,7 @@
     const pending=upcoming.filter(s=>s.status==="proposed").length;
     const conflicts=upcoming.filter(s=>s.status==="conflicted").length;
     const sessions=upcoming.filter(s=>s.status==="approved").sort((a,b)=>a.date.localeCompare(b.date)||a.start-b.start);
-    if(pending||conflicts)return {ready:false,sessions:[],message:`Before exporting, approve or reject ${pending} upcoming proposals and dismiss ${conflicts} unresolved conflicts.`};
+    if(pending||conflicts)return {ready:false,needsReview:true,sessions:[],message:`Before exporting, approve or reject ${pending} upcoming proposals and dismiss ${conflicts} unresolved conflicts.`};
     if(!sessions.length)return {ready:false,sessions:[],message:"No new approved future blocks to export. Existing Outlook focus is already on your calendar."};
     return {ready:true,sessions,message:`Ready to export ${sessions.length} approved future focus ${sessions.length===1?"block":"blocks"} as Busy appointments titled Focus Time.`};
   }
@@ -59,3 +59,4 @@
   }
   return {readiness,create,toUTC,foldLine,escapeText};
 });
+

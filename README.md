@@ -315,7 +315,7 @@ This is a one-time import, not calendar synchronization. Exporting never writes 
 
 A privately supplied, self-contained HTML test copy can include an extract already loaded. Open that file in your browser; all code is bundled and no network requests are needed. Download your plan as a backup, since browser storage may be cleared or may not be available for local files. Keep the same local filename/path when reopening. A saved plan already in the browser takes precedence over bundled data.
 
-No real calendar extract or generated personal plan belongs in this repository. The app starts empty; **Try demo data** is explicitly synthetic. The previous v0.2 read-only adapter remains in `outlook.js` for a later release, but this release does not load it or its Microsoft authentication dependency.
+No real calendar extract or generated personal plan belongs in this repository. The app starts empty. To try synthetic data, import `demo-calendar.json` using the normal JSON import; there is no demo button. The example has a fixed six-week window beginning November 19, 2026; update its window and event dates when using it later. The previous v0.2 read-only adapter remains in `outlook.js` for a later release, but this release does not load it or its Microsoft authentication dependency.
 
 ## Automatic updates from OneDrive
 
@@ -327,7 +327,7 @@ C:\Users\<username>\OneDrive - <organization>\SuperlistSync
 
 The app reads `calendar_events.json` in that folder. Browsers require the folder picker; JavaScript cannot silently open a Windows path. Only read permission is requested. The file is looked up by name on every check, so atomic OneDrive replacements work. Keep OneDrive running and the file available locally. A local HTML file or localhost may be used; enterprise browser policies can disable folder access. Manual import remains available.
 
-The app remembers the folder handle in IndexedDB where supported. When reopening, it checks permission without displaying an automatic prompt. If permission has expired, click **Refresh now** to allow it again. If the browser cannot remember a folder, select it again. Keep the app at the same local filename/path for consistent storage. **Disconnect** stops reading and forgets the handle while keeping the current plan. Importing a saved plan or switching to demo also disconnects.
+The app remembers the folder handle in IndexedDB where supported. When reopening, it checks permission without displaying an automatic prompt. If permission has expired, click **Refresh now** to allow it again. If the browser cannot remember a folder, select it again. Keep the app at the same local filename/path for consistent storage. **Disconnect** stops reading and forgets the handle while keeping the current plan. Importing a calendar extract or saved plan also disconnects.
 
 The file is checked every 60 seconds, when the tab becomes visible, and when the window regains focus. **Refresh now** checks immediately; it does not run Power Automate. The file's modification time and last successful check are displayed. Exports over 75 minutes old are flagged. A missing file, partial JSON write, revoked access, older snapshot, or invalid data leaves the last valid plan intact and is retried. No polling occurs while the page is closed, and background tabs may delay checks.
 
@@ -352,6 +352,8 @@ The upstream flow must export the complete 42-day **calendar view**, expanding r
 Run `python scripts/build_standalone.py` to produce `dist/Focus_Planner_v0.8.html`. This bundles the same local code and requires no web server, packages or network requests. Open the HTML in Edge or Chrome, then connect the folder. No personal calendar data is bundled.
 
 ## Planning preferences
+
+Open **Planning preferences** in the header. The plan controls place **Export to Outlook (.ics)** on the second row, beside its status message. Outstanding proposal decisions or conflicts make that message red; it returns to the normal color when those are resolved. Coverage cards show **✅ Focus Time Secured** in green and **No focus planned** in red. Full-day PTO/OOO cards omit the workday-exclusion caption. Generating again with no new blocks keeps existing decisions without displaying a no-change notice.
 
 | Setting | Value |
 | --- | --- |
@@ -443,3 +445,4 @@ Validation: 41 Node checks pass, covering planning, local-file refresh, export a
 
 
 Calendar coverage cards show the day number, three-letter month, and three-letter weekday. Timed meetings on a day off remain visible for reference but do not count toward workday targets.
+

@@ -88,17 +88,23 @@
     .day .timeline-ticks{display:flex;justify-content:space-between;color:#68788d;font-size:10px;font-variant-numeric:tabular-nums;gap:2px}
     .day .day-note{font-size:11px;color:#607086;min-height:14px}
     .day .day-note.no-focus{color:#a22c36}
+    .day .day-note.focus-secured{color:#147b4e}
     @media(max-width:1000px){.week{grid-template-columns:repeat(3,minmax(0,1fr))}}
     @media(max-width:620px){.week{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.day{min-height:170px;padding:12px 9px}.day .day-number{font-size:24px}.day .meeting-badge{font-size:20px}.day .timeline-ticks{font-size:9px}}
 
-    /* Keep calendar input and all global planning actions directly below the header. */
+    /* Keep calendar input and plan actions directly below the header. */
     .workspace-controls{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,3fr);gap:18px;align-items:start}
     .workspace-controls>.card{min-width:0;height:100%}
     .workspace-controls .hint{margin:10px 0;font-size:13px}
     .workspace-controls h3{margin-bottom:10px}
     .plan-heading h2{margin:0;font-size:22px}
-    .secondary-actions{margin-top:12px;padding-top:12px;border-top:1px solid #e9eff5}
-    .export-help{margin-top:14px;padding-top:4px;border-top:1px solid #e9eff5}
+    .header-actions{display:flex;align-items:center;justify-content:flex-end;gap:14px;flex-wrap:wrap}
+    .header-actions .btn{background:#213d56;border-color:#7890a7;color:#fff}
+    .export-actions{display:flex;align-items:center;gap:14px;margin-top:14px;padding-top:14px;border-top:1px solid #e9eff5}
+    .export-actions .btn{flex-shrink:0}
+    .export-actions .hint{margin:0;flex:1;min-width:0}
+    .export-actions .export-warning{color:#a22c36}
+    #notice:empty{display:none}
     .help{margin-top:10px}.help summary{cursor:pointer;color:#28589c;font-size:13px;font-weight:600}
     .file-path{overflow-wrap:anywhere}
     .metrics{grid-template-columns:repeat(6,minmax(0,1fr))}
@@ -110,7 +116,7 @@
     .btn:focus-visible,.help summary:focus-visible,input:focus-visible{outline:3px solid #3388e5;outline-offset:3px}
     @media(max-width:1050px){.metrics{grid-template-columns:repeat(3,minmax(0,1fr))}}
     @media(max-width:800px){.workspace-controls{grid-template-columns:minmax(0,1fr)}}
-    @media(max-width:620px){.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.workspace-controls>.card{padding:18px}.metric span{min-height:36px}}
+    @media(max-width:620px){.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.workspace-controls>.card{padding:18px}.metric span{min-height:36px}.top{flex-wrap:wrap}.header-actions{justify-content:flex-start}.export-actions{align-items:flex-start;flex-direction:column}}
 
     /* Keep the selected day beside the six-week coverage while browsing. */
     main{max-width:1760px}
@@ -131,7 +137,7 @@
   </style>
 </head>
 <body>
-<header class="top"><div class="brand"><img class="brand-icon" src="./focus-planner-icon.svg" width="48" height="48" alt="" aria-hidden="true"><div><h1>Focus Planner <small style="font-size:12px;font-weight:500;opacity:.7">v0.8</small></h1><p>Protect the time you need to do meaningful work.</p></div></div><span class="badge" id="modeBadge">Calendar extract · Offline prototype</span></header>
+<header class="top"><div class="brand"><img class="brand-icon" src="./focus-planner-icon.svg" width="48" height="48" alt="" aria-hidden="true"><div><h1>Focus Planner <small style="font-size:12px;font-weight:500;opacity:.7">v0.8</small></h1><p>Protect the time you need to do meaningful work.</p></div></div><div class="header-actions"><button class="btn" id="preferencesButton" aria-haspopup="dialog" aria-controls="preferencesDialog">Planning preferences</button><span class="badge" id="modeBadge">Calendar extract · Offline prototype</span></div></header>
 <main>
   <div class="workspace-controls" aria-label="Calendar and plan controls">
     <section class="card calendar-source" aria-labelledby="calendarFileTitle">
@@ -149,15 +155,11 @@
     </section>
     <section class="card plan-controls" aria-labelledby="planTitle">
       <div class="plan-heading"><div><h2 id="planTitle">Your six-week focus plan</h2><p class="hint">Protect a continuous two-hour block each workday. Add more whenever your day allows.</p></div></div>
-      <div class="actions" aria-label="Plan actions"><button class="btn primary" id="generate">Generate plan</button><button class="btn" id="approveAll">Approve all proposals</button><button class="btn" id="save">Save plan</button><button class="btn" id="export">Download plan</button><button class="btn primary" id="exportIcs" aria-describedby="icsStatus" disabled>Export to Outlook (.ics)</button><button class="btn danger" id="reset">Rebuild plan</button></div>
-      <div class="actions secondary-actions"><button class="btn" id="preferencesButton" aria-haspopup="dialog" aria-controls="preferencesDialog">Planning preferences</button><button class="btn" id="demoMode">Try demo data</button></div>
-      <p class="hint">Select a day to add or extend focus time. Every added or extended block needs approval.</p>
+      <div class="actions" aria-label="Plan actions"><button class="btn primary" id="generate">Generate plan</button><button class="btn" id="approveAll">Approve all proposals</button><button class="btn" id="save">Save plan</button><button class="btn" id="export">Download plan</button><button class="btn danger" id="reset">Rebuild plan</button></div>
+      <div class="export-actions" aria-label="Outlook export"><button class="btn primary" id="exportIcs" aria-describedby="icsStatus" disabled>Export to Outlook (.ics)</button><p class="hint" id="icsStatus" role="status"></p></div>
       <p class="hint" id="notice" role="status">Import an extract to get started.</p>
       <p class="save-status" id="saveStatus" role="status">Changes save automatically in this browser.</p>
-      <div class="export-help" aria-label="Outlook export">
-        <p class="hint" id="icsStatus" role="status"></p>
         <details class="help"><summary>How to import into Outlook</summary><p class="hint">After saving: in Outlook on the web, choose <b>Calendar → Add calendar → Upload from file</b>, select the .ics, choose your <b>main work calendar</b>, then import. Only new approved future blocks are exported; focus already on Outlook is excluded. This is a one-time import. Reimporting may create duplicates; later edits or removals in this app do not update imported appointments.</p></details>
-      </div>
     </section>
   </div>
   <section class="metrics" aria-label="Plan metrics">
@@ -174,7 +176,7 @@
     </section>
     <aside class="card day-sidebar" id="daySidebar" aria-labelledby="detailTitle" tabindex="-1">
       <p class="sidebar-label">Selected day</p><h3 id="detailTitle" aria-live="polite">Select a day</h3>
-      <div id="detailBody" class="hint">Import your calendar or try demo data, then select a day to see its calendar and focus time.</div>
+      <div id="detailBody" class="hint">Import your calendar, then select a day to see its calendar and focus time.</div>
     </aside>
   </div>
   <p class="footer">Prototype v0.8 · Local calendar file · Local browser storage · Manual Outlook .ics import</p>
@@ -196,3 +198,4 @@
 <script src="app.js" defer></script>
 </body>
 </html>
+
