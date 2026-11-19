@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Focus Planner calendar with approved checkmark">
+<rect width="128" height="128" rx="24" fill="#003366"/>
+<path d="M35 30H93Q99 30 99 37V92Q99 99 92 99H36Q29 99 29 92V37Q29 30 35 30Z" fill="none" stroke="#FFFFFF" stroke-width="7"/>
+<path d="M29 49H99" stroke="#FFFFFF" stroke-width="7"/>
+<path d="M46 23V39M80 23V39" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round"/>
+<rect x="40" y="59" width="13" height="13" rx="2.5" fill="#99CCFF"/>
+<rect x="59" y="59" width="13" height="13" rx="2.5" fill="#99CCFF"/>
+<rect x="78" y="59" width="13" height="13" rx="2.5" fill="#99CCFF"/>
+<rect x="40" y="78" width="13" height="13" rx="2.5" fill="#99CCFF"/>
+<rect x="59" y="78" width="13" height="13" rx="2.5" fill="#99CCFF"/>
+<circle cx="88" cy="88" r="25" fill="#FFFFFF" stroke="#0066CC" stroke-width="6"/>
+<path d="M76 87L85 96L101 78" fill="none" stroke="#003366" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
