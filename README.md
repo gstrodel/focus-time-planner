@@ -4,9 +4,132 @@ An offline, browser-based six-week focus planner using an Outlook calendar **ext
 
 ## Recreate the Power Automate calendar export
 
-Build and test this flow before connecting the app to your calendar folder. It refreshes a complete, rolling **42-calendar-day** extract every **30 minutes**, starting at midnight today in Eastern Time. Power Automate reads Outlook and writes a JSON file to OneDrive for Business; the OneDrive desktop client syncs it to Windows, where Focus Planner reads it.
+The **current five-step flow** below is transcribed from the trigger/action Code view definitions Gordon supplied. It reads Outlook every 30 minutes and replaces `/SuperlistSync/calendar_events.json` in OneDrive for Business. The OneDrive desktop client syncs that file to Windows for Focus Planner to read. The later **Recommended flow for complete six-week imports** section is a proposed revision, not the deployed configuration. No live flow was changed or run while documenting these definitions.
 
-This is a reproducible design based on the app's current import contract and Gordon's existing schedule and destination. It is not an export or inspection of the deployed flow; its action names and internal structure may differ. The instructions below use one primary work calendar. Holidays/PTO must exist in that calendar to be included; separate holiday or shared calendars are not automatically combined.
+### Current flow: prerequisites and conventions
+
+Sign in to [Power Automate](https://make.powerautomate.com/) with your work account and connect **Office 365 Outlook** and **OneDrive for Business**. Create the cloud folder `/SuperlistSync` and an existing UTF-8 file named `calendar_events.json` (a new file can initially contain `{}`; this placeholder is not importable). Do not replace an existing working extract with the placeholder. `Update file` needs a file that already exists.
+
+The file syncs on Gordon's computer to `C:\Users\UBC3554\OneDrive - Takeda\SuperlistSync\calendar_events.json`. Other users must use their own OneDrive location. Cloud actions use the OneDrive picker, not a Windows path; keep OneDrive running and the file available locally.
+
+Build the steps in the order below. Add expressions through **Expression / fx** without the leading `@` shown in Code view. Keep the internal action names `Get_calendar_view_of_events_(V3)`, `Select`, and `Compose`, because later expressions reference them. If the designer generates different names, update the expressions accordingly. Each action after the calendar retrieval runs only when its preceding action **Succeeded**.
+
+Calendar and OneDrive file identifiers are specific to the account. Select your own calendar and file in the designer; the opaque IDs supplied from Gordon's flow are deliberately omitted here.
+
+### Current flow, step 1: Recurrence
+
+Create a **Scheduled cloud flow** and configure its Recurrence trigger:
+
+| Setting | Value in the supplied definition |
+| --- | --- |
+| Frequency | `Minute` |
+| Interval | `30` |
+| Time zone | `Eastern Standard Time` |
+
+The supplied trigger contains no start-time or concurrency configuration. This is a 30-minute interval; it does not establish exact wall-clock execution at `:00` and `:30`. The trigger's timezone setting does not change the meaning of `utcNow()` in subsequent expressions.
+
+### Current flow, step 2: Get calendar view of events (V3)
+
+Add **Office 365 Outlook → Get calendar view of events (V3)** (`GetEventsCalendarViewV3`):
+
+| Field | Value / Expression |
+| --- | --- |
+| Calendar Id | Select the work calendar to export |
+| Start Time | `startOfDay(utcNow())` |
+| End Time | `addDays(utcNow(),42)` |
+| Other query fields | Unset in the supplied definition |
+
+This action expands recurring events into occurrences. The supplied definition performs one calendar-view request; it has no explicit Top Count / Skip Count loop or pagination runtime configuration.
+
+These bounds mean **midnight today in UTC through the current UTC time 42 days later**. They are not two Eastern-midnight boundaries exactly 42 local calendar days apart. For example, at `2026-11-19T14:00:00Z` the query starts at `2026-11-19T00:00:00Z` (7 PM Eastern on November 18) and ends at `2026-12-31T14:00:00Z` (9 AM Eastern on December 31). The two `utcNow()` calls are also evaluated independently.
+
+### Current flow, step 3: Select
+
+Add **Data Operation → Select**, retaining the name `Select`. Set **From** to:
+
+```text
+body('Get_calendar_view_of_events_(V3)')?['value']
+```
+
+Enter these seven map keys as text and their values as expressions:
+
+| JSON key | Value expression |
+| --- | --- |
+| `id` | `item()?['id']` |
+| `start` | `item()?['start']` |
+| `end` | `item()?['end']` |
+| `subject` | `item()?['subject']` |
+| `showAs` | `item()?['showAs']` |
+| `isAllDay` | `item()?['isAllDay']` |
+| `isCancelled` | `item()?['isCancelled']` |
+
+This preserves titles, availability, all-day flags, and cancellation flags while omitting descriptions, organizers, attendees, and meeting links. It does not export the event timezone or response status. All-day events remain in the extract; the app hides them only in the day-calendar display.
+
+### Current flow, step 4: Compose
+
+Add **Data Operation → Compose**, retaining the name `Compose`. Paste this expression into its Inputs:
+
+```text
+setProperty(
+  setProperty(
+    json('{}'),
+    'generatedAt',
+    utcNow()
+  ),
+  'events',
+  body('Select')
+)
+```
+
+The output is an object with `generatedAt` and an `events` array. This synthetic example illustrates the connector's timezone-free `start` / `end` fields; it is an illustration of the current output, **not a valid import fixture for current main**:
+
+```json
+{
+  "generatedAt": "2026-11-19T14:00:00Z",
+  "events": [
+    {
+      "id": "synthetic-current-event-1",
+      "start": "2026-11-19T15:00:00.0000000",
+      "end": "2026-11-19T16:00:00.0000000",
+      "subject": "Example meeting",
+      "showAs": "busy",
+      "isAllDay": false,
+      "isCancelled": false
+    }
+  ]
+}
+```
+
+### Current flow, step 5: Update file
+
+Add **OneDrive for Business → Update file** (`UpdateFile`), select `/SuperlistSync/calendar_events.json`, and set **File Content** to:
+
+```text
+string(outputs('Compose'))
+```
+
+This replaces the existing file contents on each successful run. The supplied action has **Content transfer → Transfer mode: Chunked** in its runtime configuration; retain that setting where exposed in the action settings. The file picker stores an account-specific file ID. If the file is deleted and recreated, reselect it. No **Create file** action or Outlook write is present in the supplied flow.
+
+Save, run a manual test, and check each action in run history. Confirm the intended calendar was selected, Compose produces an object with an event array, and the file updates in both OneDrive and the local synced folder. A successful cloud run does not by itself establish compatibility or complete six-week coverage; review the differences below before connecting current main.
+
+### Current flow: differences from the app's import requirements
+
+| Area | Supplied flow | Consequence / recommended revision |
+| --- | --- | --- |
+| Event timestamps | Select copies `start` and `end`, omitting timezone metadata | The connector documents these as timezone-free. Current main rejects such timestamps for retained events; map `startWithTimeZone` and `endWithTimeZone` instead. Never append a guessed `Z` or offset. |
+| Capture time | Compose writes `generatedAt` | The folder importer recognizes `capturedAt`, not `generatedAt`, and falls back to file modification time when absent. Use `capturedAt` in the revised wrapper. |
+| Window | UTC midnight to `utcNow() + 42 days`; no explicit bounds exported | The folder importer otherwise assumes 42 Eastern calendar days from the file date. Freeze Eastern local dates and export `windowStart`, exclusive `windowEnd`, and `timeZone`. |
+| Completeness | Single request; Select retains only `value` | Microsoft documents a 256-event request limit. Later pages can be lost, and Select also discards any next-link metadata the importer could use to detect this. Retrieve all pages before publishing; never assert completeness for the single response without verification. |
+| Declined invitations | Neither `responseType` nor `responseStatus` is exported | The importer cannot identify declined invitations from this mapping. Add `responseType` to the revised Select map. |
+| Overlapping runs | No concurrency setting in the supplied trigger | The recommended design serializes runs to reduce stale overwrites. |
+
+These findings come from the supplied definitions, the connector reference, and the current repository importer. No real event payload or live run was inspected. A calendar with fewer than 256 events still needs timestamp and date-boundary checks.
+
+## Recommended flow for complete six-week imports
+
+The following design revises the supplied flow to match the current import contract. It is documented separately so the original five steps remain reproducible. It is **not deployed or tenant-tested**. Build and test it before connecting the app: it requests a complete, rolling **42-calendar-day** extract every **30 minutes**, starting at midnight today in Eastern Time.
+
+The instructions use one primary work calendar. Holidays/PTO must exist in that calendar to be included; separate holiday or shared calendars are not automatically combined. When revising the original, replace its retrieval/mapping/wrapper steps with this design rather than running both versions against the same output file.
 
 ### 1. Prepare the connections and output file
 
@@ -166,9 +289,9 @@ The flow only reads Outlook; booking still follows the app's approval and `.ics`
 
 ### Can the flow be stored as code?
 
-Yes. Power Automate represents cloud flows as JSON definitions. A non-solution flow can be exported as a **Package (.zip)**; solution-aware flows are exported with their solution and can be versioned with Power Platform tooling. An actual export is the best starting point for documenting or packaging the deployed flow exactly. This README provides manual recreation instructions, not an importable package. Imported flows still need the appropriate connections, calendar/file selections, environment configuration, and permissions; a bare JSON snippet is not a ready-to-run authenticated integration.
+Yes. Power Automate represents cloud flows as JSON definitions. A non-solution flow can be exported as a **Package (.zip)**; solution-aware flows are exported with their solution and can be versioned with Power Platform tooling. If the flow's Export menu only offers **Learn how** and **Get flow identifier**, check the **Solutions** card on its details page; a solution-aware flow is exported through its solution. The menu alone does not establish an organization policy restriction. To inspect individual steps without a package, use **Edit → select trigger/action → Code view** in the new designer, or **… → Peek code** in the classic designer. Those per-step definitions are the source for the current-flow documentation above; they do not include a complete importable package or establish a successful live run. This README provides manual recreation instructions. Imported flows still need the appropriate connections, calendar/file selections, environment configuration, and permissions; a bare JSON snippet is not a ready-to-run authenticated integration.
 
-Microsoft references: [Outlook connector and paging limits](https://learn.microsoft.com/en-us/connectors/office365/), [OneDrive for Business connector](https://learn.microsoft.com/en-us/connectors/onedriveforbusiness/), [workflow expressions](https://learn.microsoft.com/en-us/azure/logic-apps/expression-functions-reference), [Power Automate timezone conversion](https://learn.microsoft.com/en-us/power-automate/convert-time-zone), [export/import a non-solution flow](https://learn.microsoft.com/en-us/power-automate/export-import-flow-non-solution), and [export solution-aware flows](https://learn.microsoft.com/en-us/power-automate/export-flow-solution).
+Microsoft references: [Outlook connector and paging limits](https://learn.microsoft.com/en-us/connectors/office365/), [OneDrive for Business connector](https://learn.microsoft.com/en-us/connectors/onedriveforbusiness/), [workflow expressions](https://learn.microsoft.com/en-us/azure/logic-apps/expression-functions-reference), [Power Automate timezone conversion](https://learn.microsoft.com/en-us/power-automate/convert-time-zone), [Code view and Peek code](https://learn.microsoft.com/en-us/power-automate/guidance/coding-guidelines/use-peekcode-addnotes), [export/import a non-solution flow](https://learn.microsoft.com/en-us/power-automate/export-import-flow-non-solution), and [export solution-aware flows](https://learn.microsoft.com/en-us/power-automate/export-flow-solution).
 
 ## Test it
 
