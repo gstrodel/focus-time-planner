@@ -55,6 +55,8 @@
     const byDate = {};
     for (const event of snapshot.events) {
       if(isOtherPersonTimeOff(event))continue;
+      // Informational all-day entries do not consume work time or reserve focus.
+      if(event.allDay && !isTimeOff(event))continue;
       if(event.status==="free"&&!includeFree)continue;
       const a=localParts(event.start,snapshot.timeZone), b=localParts(event.end,snapshot.timeZone);
       // All-day midnight exports carry calendar dates, including UTC date-only encodings.
@@ -182,6 +184,3 @@
   }
   return {CONFIG,ACTIVE,addDays,localParts,overlap,isTimeOff,isOtherPersonTimeOff,validateSnapshot,validatePlan,workdays,intervals,merge,gaps,createPlan,scheduled,meetingLoad,dailyFocusTarget,hasContinuousFocus,available,addBlock,extendBlock,generate,demo};
 });
-
-
-

@@ -99,6 +99,7 @@
       for(const tick of ["9:30","12:00","2:00","4:00","5:30"]){const span=document.createElement("span");span.textContent=tick;ticks.append(span);}
       const note=document.createElement("div");note.className="day-note";
       note.textContent=pct===null?"No focus planning needed":sessions.some(s=>s.status==="conflicted")?"Review focus conflict":P.hasContinuousFocus(plan,date)?"2h continuous focus secured":minutes?"Focus planned; 2h block needed":"No focus planned";
+      if(note.textContent==="No focus planned")note.className+=" no-focus";
       btn.append(name,badge,caption,strip,ticks,note);
       btn.addEventListener("click",()=>{
         selected=date;render();
