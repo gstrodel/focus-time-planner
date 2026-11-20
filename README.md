@@ -353,6 +353,8 @@ Run `python scripts/build_standalone.py` to produce `dist/Focus_Planner_v0.8.htm
 
 ## Planning preferences
 
+A green **All applicable focus days are fully planned** banner appears near the plan controls when every upcoming working day meets its daily focus target using existing calendar focus or approved local blocks, includes a continuous two-hour block, and has no upcoming proposals or unresolved conflicts. Full-day PTO/OOO and past days are excluded. The banner confirms when the latest calendar extract contains the reservations; if approved local blocks still need booking, it directs you to export and import them into Outlook. Having no suggestions because there is insufficient space does not count as fully planned.
+
 Open **Planning preferences** in the header. The plan controls place **Export to Outlook (.ics)** on the second row, beside its status message. Outstanding proposal decisions or conflicts make that message red; it returns to the normal color when those are resolved. Coverage cards show **✅ Focus Time Secured** in green and **No focus planned** in red. Full-day PTO/OOO cards omit the workday-exclusion caption. Generating again with no new blocks keeps existing decisions without displaying a no-change notice.
 
 | Setting | Value |

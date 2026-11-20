@@ -134,7 +134,7 @@
           this.lastText=text;this.lastModified=file.lastModified;this.loadedAt=new Date();
         }
         const stale=Date.now()-file.lastModified>75*60*1000;
-        this.status(`${handle.name} / ${FILE} · File updated ${new Date(file.lastModified).toLocaleString()}. Last checked ${new Date().toLocaleTimeString()}. Checking every minute while open.${stale?" Export is over 75 minutes old; check Power Automate and OneDrive.":""}${this.remembered?"":" Choose the folder again next time; this browser could not remember it."}`,{stale});
+        this.status(`File updated ${new Date(file.lastModified).toLocaleString()}. Last checked ${new Date().toLocaleTimeString()}. Checking every minute while open.${stale?" Export is over 75 minutes old; check Power Automate and OneDrive.":""}${this.remembered?"":" Choose the folder again next time; this browser could not remember it."}`,{stale});
       }catch(e){
         if(this.generation===generation)this.status("Calendar refresh paused: "+(e.name==="NotFoundError"?"calendar_events.json was not found. Check OneDrive sync and the selected folder.":e.message)+" Your last valid plan is kept; retries continue every minute.");
       }finally{this.busy=false;}
