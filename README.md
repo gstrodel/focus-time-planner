@@ -9,6 +9,10 @@ I built this because I was tired of spending 60–80% of my day in meetings, and
 
 The app runs locally in your browser. Power Automate and OneDrive keep its calendar file up to date; you book approved focus time by importing it into Outlook.
 
+<img align="center" src="Focus Time App Screenshot v1.0.png" width="1024">
+</br>
+
+
 ## End-to-end workflow
 
 ```mermaid
