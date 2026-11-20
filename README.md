@@ -249,3 +249,13 @@ The app counts these reservations toward your targets. When all applicable days 
 - [Office 365 Outlook connector guidance and calendar retrieval limits](https://learn.microsoft.com/en-us/connectors/office365/)
 - [Import an ICS calendar file into Outlook](https://support.microsoft.com/en-us/outlook/import-or-subscribe-to-a-calendar-in-outlook-com-or-outlook-on-the-web)
 
+
+## License
+
+Focus Time Planner is source-available under the [MIT License subject to the Commons Clause](LICENSE).
+
+You may use it for free for personal and internal business purposes, and clone, modify, and share it under the license terms. Preserve the copyright and license notices, including the Commons Clause.
+
+The license does not grant permission to sell the app, rebrand and resell it, or charge for a product or service whose value comes entirely or substantially from the app's functionality, including paid hosting or related consulting/support services covered by the Commons Clause. Those uses require separate written permission from Gordon Strodel. To request permission, [open a GitHub issue](https://github.com/gstrodel/focus-time-planner/issues/new).
+
+This is a summary; the full terms in [LICENSE](LICENSE) govern.
