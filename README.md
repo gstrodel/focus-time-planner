@@ -1,6 +1,6 @@
 <h1>
   <img src="focus-planner-icon.svg" alt="Focus Time App icon" width="48">
-  Focus Time Planner App
+  Focus Time Planner 1.0
 </h1>
 
 Protect time for meaningful work across the next six weeks. Focus Time Planner uses an Outlook calendar export to suggest focus blocks, lets you review and approve them, and creates an `.ics` file to import into Outlook.
@@ -40,7 +40,7 @@ Prerequisite: Set this up once. The flow reads your Outlook calendar every 30 mi
 ### Prepare OneDrive
 
 1. Sign in to OneDrive for Business with your work account.
-2. Create a folder named **SuperlistSync**.
+2. Create a folder named **CalendarExport**.
 3. Inside that folder, create a plain-text file named **calendar_events.json**. For a new installation, enter `{}` as temporary content and save it. The flow will replace it on its first successful run; the placeholder cannot be loaded into the app. Keep an existing working calendar file if you already have one.
 4. Sync the folder to your computer using the OneDrive desktop app.
 5. In Windows File Explorer, right-click the folder and select **Always keep on this device**.
@@ -48,7 +48,7 @@ Prerequisite: Set this up once. The flow reads your Outlook calendar every 30 mi
 Your local file will typically be here:
 
 ```text
-C:\Users\<username>\OneDrive - <organization>\SuperlistSync\calendar_events.json
+C:\Users\<username>\OneDrive - <organization>\CalendarExport\calendar_events.json
 ```
 
 Use your own username and organization. Keep OneDrive running so cloud updates reach the local file. See [Links and further reading](#links-and-further-reading) for Microsoft's sync instructions.
@@ -128,7 +128,7 @@ Add **OneDrive for Business → Update file**.
 
 | Field | Value |
 | --- | --- |
-| File | Select `/SuperlistSync/calendar_events.json` using the OneDrive picker |
+| File | Select `/CalendarExport/calendar_events.json` using the OneDrive picker |
 | File Content | Expression: `string(outputs('Compose'))` |
 
 Select the cloud file in Power Automate; the Windows path is used only when opening it on your computer. Reuse the same file on every run.
@@ -148,7 +148,7 @@ The scheduled flow keeps running after you close the app. The app reads the sync
 
 1. Download the repository using **Code → Download ZIP**, then extract it.
 2. Keep the extracted app files together and open **index.html** in **Microsoft Edge** or **Google Chrome**.
-3. Click **Connect calendar folder** and select your local **SuperlistSync** folder. Allow read access when prompted.
+3. Click **Connect calendar folder** and select your local **CalendarExport** folder. Allow read access when prompted.
 4. The app loads `calendar_events.json` and generates focus proposals.
 
 If folder access is unavailable, use **Choose File** under the calendar import option to load the file manually. Manual imports need to be repeated when you want newer calendar data.
