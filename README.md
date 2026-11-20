@@ -6,6 +6,27 @@
 An offline, browser-based six-week focus planner using an Outlook calendar **extract**. No Microsoft app registration or sign-in is needed for this release. Import your extract, review proposals, approve or reject them, and export an `.ics` file to import into Outlook.
 I built this because I was tired of spending 60-80% of my day in meetings and the Microsoft Viva Insights functionality to reserve focus time only worked for 2 weeks into the future. I need the ability to reserve with more control and longer into the future.
 
+## How It Works
+
+```mermaid
+flowchart TD
+    A["Outlook Calendar"] --> B["Power Automate runs every 30 minutes"]
+    B --> C["Export the next 42 days to calendar_events.json"]
+    C --> D["OneDrive syncs the file to your computer"]
+    D --> E["Load or refresh the calendar file in Focus Time Planner"]
+    E --> F["Generate focus time proposals"]
+    F --> G["Review and approve or reject proposals"]
+    G --> H{"All proposals reviewed and conflicts resolved?"}
+    H -- No --> G
+    H -- Yes --> I["Export approved focus time as an ICS file"]
+    I --> J["Import the ICS file into Outlook"]
+    J --> K["Next calendar refresh includes booked focus time"]
+    K --> A
+```
+
+Previously booked focus time counts toward your daily targets when you load the updated calendar file.
+
+
 ## Recreate the Power Automate calendar export
 
 The **current five-step flow** below combines the trigger/action Code view definitions Gordon supplied with the Select mapping updates he made on November 19, 2026. It reads Outlook every 30 minutes and replaces `/SuperlistSync/calendar_events.json` in OneDrive for Business. The OneDrive desktop client syncs that file to Windows for Focus Planner to read. The revised export was checked with the updated importer: event timestamps had explicit timezone offsets, and import, plan generation, and saved-plan validation succeeded. The flow's latest full definition was not re-inspected. The later **Recommended flow for complete six-week imports** section remains a proposed revision, not the deployed configuration.
