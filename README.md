@@ -9,7 +9,7 @@ I built this because I was tired of spending 60-80% of my day in meetings and th
 ## How It Works
 
 ```mermaid
-flowchart TD
+flowchart LR
     A["Outlook Calendar"] --> B["Power Automate runs every 30 minutes"]
     B --> C["Export the next 42 days to calendar_events.json"]
     C --> D["OneDrive syncs the file to your computer"]
