@@ -1,4 +1,7 @@
-# Focus Planner App
+<h1>
+  <img src="focus-planner-icon.svg" alt="Focus Time App icon" width="48">
+  Focus Time Planner App
+</h1>
 
 An offline, browser-based six-week focus planner using an Outlook calendar **extract**. No Microsoft app registration or sign-in is needed for this release. Import your extract, review proposals, approve or reject them, and export an `.ics` file to import into Outlook.
 I built this because I was tired of spending 60-80% of my day in meetings and the Microsoft Viva Insights functionality to reserve focus time only worked for 2 weeks into the future. I need the ability to reserve with more control and longer into the future.
