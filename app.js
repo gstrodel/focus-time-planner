@@ -136,7 +136,28 @@
     }
     if(load.workingMinutes)renderBookingForm(details);
   }
+  function renderPlanCompletion(){
+    let title="",detail="";
+    if(plan){
+      const today=P.localParts(new Date().toISOString(),plan.snapshot.timeZone).date,busy=P.intervals(plan.snapshot);
+      const days=P.workdays(plan.snapshot).filter(date=>date>=today&&P.meetingLoad(plan.snapshot,date,busy).workingMinutes>0);
+      const upcoming=plan.sessions.filter(s=>s.date>=today);
+      const confirmed={...plan,sessions:plan.sessions.filter(s=>s.status==="approved"||s.status==="existing")};
+      const complete=days.length>0&&!upcoming.some(s=>s.status==="proposed"||s.status==="conflicted")&&days.every(date=>
+        P.scheduled(confirmed,date)>=P.dailyFocusTarget(plan.snapshot,date,busy)&&P.hasContinuousFocus(confirmed,date));
+      if(complete){
+        title="✅ All applicable focus days are fully planned";
+        detail=`All ${days.length} applicable working ${days.length===1?"day meets":"days meet"} the daily focus target, including a continuous 2-hour block. `+
+          (upcoming.some(s=>s.status==="approved")?"Export approved blocks and import them into Outlook to reserve the remaining time.":
+            plan.snapshot.source==="demo"?"This is a synthetic demo plan.":"Focus time is already reserved in your latest Outlook calendar file. No additional suggestions are needed.");
+      }
+    }
+    $("planCompletion").hidden=!title;
+    if($("planCompletionTitle").textContent!==title)$("planCompletionTitle").textContent=title;
+    if($("planCompletionDetail").textContent!==detail)$("planCompletionDetail").textContent=detail;
+  }
   function renderCalendarExport(){
+    renderPlanCompletion();
     const state=I.readiness(plan);
     $("exportIcs").disabled=exportingCalendar||!state.ready;
     $("exportIcs").textContent=exportingCalendar?"Saving .ics…":"Export to Outlook (.ics)";

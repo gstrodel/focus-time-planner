@@ -108,6 +108,8 @@
     .export-actions .hint{margin:0;flex:1;min-width:0}
     .export-actions .export-warning{color:#a22c36}
     #notice:empty{display:none}
+    .completion-banner{margin:14px 0;padding:14px 16px;border:1px solid #a8d9bb;border-radius:10px;background:#e8f6ed;color:#176043;font-size:14px;line-height:1.5}
+    .completion-banner[hidden]{display:none}.completion-banner strong{display:block;font-size:16px}.completion-banner p{margin:5px 0 0}
     .help{margin-top:10px}.help summary{cursor:pointer;color:#28589c;font-size:13px;font-weight:600}
     .file-path{overflow-wrap:anywhere}
     .metrics{grid-template-columns:repeat(6,minmax(0,1fr))}
@@ -157,6 +159,7 @@
     </section>
     <section class="card plan-controls" aria-labelledby="planTitle">
       <div class="plan-heading"><div><h2 id="planTitle">Your six-week focus plan</h2><p class="hint">Protect a continuous two-hour block each workday. Add more whenever your day allows.</p></div></div>
+      <div class="completion-banner" id="planCompletion" role="status" hidden><strong id="planCompletionTitle"></strong><p id="planCompletionDetail"></p></div>
       <div class="actions" aria-label="Plan actions"><button class="btn primary" id="generate">Generate plan</button><button class="btn" id="approveAll">Approve all proposals</button><button class="btn" id="save">Save plan</button><button class="btn" id="export">Download plan</button><button class="btn danger" id="reset">Rebuild plan</button></div>
       <div class="export-actions" aria-label="Outlook export"><button class="btn primary" id="exportIcs" aria-describedby="icsStatus" disabled>Export to Outlook (.ics)</button><p class="hint" id="icsStatus" role="status"></p></div>
       <p class="hint" id="notice" role="status">Import an extract to get started.</p>
