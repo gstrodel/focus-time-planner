@@ -73,7 +73,7 @@ test("stale exports and timezone changes never replace an existing plan",()=>{
 });
 function fixture(){
   let text=JSON.stringify(snapshot()),modified=Date.parse(NOW),permission="granted",remembered=null,reads=0,applied=[];
-  const messages=[],handle={name:"SuperlistSync",queryPermission:async()=>permission,requestPermission:async()=>{permission="granted";return permission;},
+  const messages=[],handle={name:"CalendarExport",queryPermission:async()=>permission,requestPermission:async()=>{permission="granted";return permission;},
     getFileHandle:async name=>{assert.equal(name,L.FILE);reads++;return {getFile:async()=>({size:Buffer.byteLength(text),lastModified:modified,text:async()=>text})};}};
   const storage=async(action,value)=>{if(action==="put")remembered=value;if(action==="delete")remembered=null;return remembered;};
   const connection=new L.Connection({pick:async()=>handle,storage,status:message=>messages.push(message),apply:async value=>applied.push(value)});

@@ -172,7 +172,7 @@ test('overlaps get separate lanes; touching events use the full width and times 
 
 test('connected folder refresh updates app decisions and exposes conflicts without losing valid approvals',async()=>{
  const L=require('../local-calendar.js');let content,modified=Date.now(),handleSaved=null;
- const handle={name:'SuperlistSync',queryPermission:async()=>"granted",getFileHandle:async()=>({getFile:async()=>({size:100,lastModified:modified,text:async()=>content})})};
+ const handle={name:'CalendarExport',queryPermission:async()=>"granted",getFileHandle:async()=>({getFile:async()=>({size:100,lastModified:modified,text:async()=>content})})};
  const module={...L,Connection:class extends L.Connection{
    constructor(options){super({...options,pick:async()=>handle,storage:async(action,value)=>{if(action==='put')handleSaved=value;if(action==='delete')handleSaved=null;return handleSaved;}});}
  }};
