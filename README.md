@@ -35,7 +35,7 @@ Once the updated calendar file contains your booked focus time, the app counts i
 
 ## 1. Creation of the Power Automate flow
 
-Set this up once. The flow reads your Outlook calendar every 30 minutes and updates a file in OneDrive for the app to read.
+Prerequisite: Set this up once. The flow reads your Outlook calendar every 30 minutes and updates a file in OneDrive for the app to read.
 
 ### Prepare OneDrive
 
@@ -185,12 +185,11 @@ Open **Planning preferences** in the header to see the rules.
 | Preference | Behavior |
 | --- | --- |
 | Planning window | Six weeks, weekdays |
-| Working hours | 9:00 AM–5:30 PM Eastern |
+| Working hours | 9:30 AM–5:30 PM Eastern |
 | Continuous focus goal | One uninterrupted two-hour block per working day |
 | Days with 50% or less in meetings | Target at least four hours or half the available workday |
 | Additional blocks | At least 60 minutes |
 | Preferred focus time | Morning |
-| Commute option | Keep 9:00–9:30 AM free from new focus proposals |
 | Existing focus reservations | Count toward your target |
 | Full-day PTO/OOO | No focus planning needed |
 
@@ -242,7 +241,7 @@ The app counts these reservations toward your targets. When all applicable days 
 
 **Import each export only once.** Reimporting can create duplicate appointments. This is a one-time calendar import: later edits or removals in the app do not update previously imported appointments. Make changes to those reservations in Outlook and refresh the app before planning again.
 
-## Links and further reading
+# Links and further reading
 
 - [How to configure OneDrive sync on your computer](https://support.microsoft.com/en-us/onedrive/sync-your-computer-s-files-and-folders-with-onedrive)
 - [Keep OneDrive files available on your device](https://support.microsoft.com/en-us/onedrive/save-disk-space-with-onedrive-files-on-demand-for-windows)
