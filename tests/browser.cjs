@@ -1,5 +1,5 @@
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
-const assert=require('node:assert/strict'),path=require('node:path'),fs=require('node:fs/promises'),os=require('node:os');
+const assert=require('node:assert/strict'),path=require('node:path');
 const P=require('../planner.js');
 (async()=>{
  const browser=await chromium.launch({headless:true,executablePath:process.env.CHROMIUM_PATH||'/usr/bin/chromium',args:['--no-sandbox']});
@@ -33,14 +33,14 @@ const P=require('../planner.js');
  assert.equal(await page.locator('#exportIcs').isEnabled(),false);
  await row.getByRole('button',{name:'Approve',exact:true}).click();await row.getByRole('button',{name:'Remove from plan',exact:true}).click();
  const before=await page.evaluate(()=>localStorage.getItem('focus-planner-v0.4'));await upload({invalid:true});assert.match(await page.locator('#notice').innerText(),/Import failed/);assert.equal(await page.evaluate(()=>localStorage.getItem('focus-planner-v0.4')),before);
- const downloadPromise=page.waitForEvent('download');await page.locator('#export').click();const download=await downloadPromise;const tmp=await fs.mkdtemp(path.join(os.tmpdir(),'focus-test-'));const dest=path.join(tmp,'plan.json');await download.saveAs(dest);const backup=JSON.parse(await fs.readFile(dest,'utf8'));P.validatePlan(backup);assert.ok(backup.sessions.some(s=>s.status==='rejected'));
+ assert.equal(await page.locator('#export').count(),0);await page.locator('#save').click();const backup=await page.evaluate(()=>JSON.parse(localStorage.getItem('focus-planner-v0.4')));P.validatePlan(backup);assert.ok(backup.sessions.some(s=>s.status==='rejected'));
  page.on('dialog',d=>d.accept());await page.locator('#reset').click();assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('focus-planner-v0.4')).sessions.some(s=>s.status==='rejected')),false);
  await upload(backup);assert.ok(await page.evaluate(()=>JSON.parse(localStorage.getItem('focus-planner-v0.4')).sessions.some(s=>s.status==='rejected')));
  await page.reload();assert.ok(await page.evaluate(()=>JSON.parse(localStorage.getItem('focus-planner-v0.4')).sessions.some(s=>s.status==='rejected')));
  await page.locator('#reset').click();state=await page.evaluate(()=>JSON.parse(localStorage.getItem('focus-planner-v0.4')));const proposed=state.sessions.find(s=>s.status==='proposed');await page.locator(`[data-date="${proposed.date}"]`).click();await page.locator(`[data-session-id="${proposed.id}"]`).getByRole('button',{name:'Reject',exact:true}).click();await page.locator('#generate').click();state=await page.evaluate(()=>JSON.parse(localStorage.getItem('focus-planner-v0.4')));assert.equal(state.sessions.find(s=>s.id===proposed.id).status,'rejected');
  await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth));
- await page.evaluate(()=>{Storage.prototype.setItem=function(){throw Error('Quota exceeded');};});await page.locator('#save').click();assert.match(await page.locator('#notice').innerText(),/could not save/);assert.equal(await page.locator('#export').isEnabled(),true);
- assert.deepEqual(errors,[]);assert.deepEqual(network,[]);await context.close();await browser.close();await fs.rm(tmp,{recursive:true,force:true});console.log('PASS: offline browser import, decisions, extension approval, removal, reload, backup/restore, invalid input, rejected blocks, mobile layout, storage failure; no external requests or page errors.');
+ await page.evaluate(()=>{Storage.prototype.setItem=function(){throw Error('Quota exceeded');};});await page.locator('#save').click();assert.match(await page.locator('#notice').innerText(),/could not save/);assert.match(await page.locator('#notice').innerText(),/Changes may be lost/);
+ assert.deepEqual(errors,[]);assert.deepEqual(network,[]);await context.close();await browser.close();console.log('PASS: offline browser import, decisions, extension approval, removal, reload, local save/restore, invalid input, rejected blocks, mobile layout, storage failure; no external requests or page errors.');
 })().catch(e=>{console.error(e);process.exit(1);});
 
 

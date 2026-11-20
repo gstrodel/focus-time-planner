@@ -71,7 +71,7 @@ test('completion requires continuous focus and no unresolved conflicts, with at 
 });
 test('malformed input cannot overwrite saved state, and denied storage remains visible',async()=>{
  const app=boot();await app.import(P.demo());const before=JSON.stringify(app.state());await app.import({schema:'bad'});assert.equal(JSON.stringify(app.state()),before);assert.match(app.nodes.notice.textContent,/Import failed/);
- app.localStorage.setItem=()=>{throw Error('quota')};app.nodes.save.click();assert.match(app.nodes.notice.textContent,/could not save/);assert.equal(app.nodes.export.disabled,false);
+ app.localStorage.setItem=()=>{throw Error('quota')};app.nodes.save.click();assert.match(app.nodes.notice.textContent,/could not save/);assert.equal(app.nodes.export,undefined);assert.match(app.nodes.notice.textContent,/Changes may be lost/);
 });
 test('bundled saved plan initializes offline, then existing browser decisions take precedence',()=>{
  const plan=P.createPlan(P.demo());P.generate(plan);plan.sessions[0].status='approved';plan.savedAt=new Date().toISOString();const app=boot(new Map(),plan);assert.equal(app.state().sessions[0].status,'approved');

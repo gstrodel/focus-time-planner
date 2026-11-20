@@ -10,7 +10,7 @@
     if(!plan)return;
     const previous=plan.savedAt;plan.savedAt=new Date().toISOString();
     try{localStorage.setItem(KEY,JSON.stringify(plan));$("saveStatus").textContent="Saved "+new Date(plan.savedAt).toLocaleTimeString();if(message)say(message);return true;}
-    catch(_){plan.savedAt=previous;$("saveStatus").textContent="Browser storage unavailable — download a backup";say("The plan is open, but this browser could not save it. Use Download plan to keep your results.");return false;}
+    catch(_){plan.savedAt=previous;$("saveStatus").textContent="Browser storage unavailable";say("The plan is open, but this browser could not save it. Changes may be lost when you close or reload the page.");return false;}
   }
   function approveable(s) {
     const now=P.localParts(new Date().toISOString(),plan.snapshot.timeZone);
@@ -26,7 +26,7 @@
   function render() {
     const loaded=!!plan;
     renderCalendarExport();
-    for(const id of ["generate","save","export","approveAll","protectCommute","reset"])$(id).disabled=!loaded;
+    for(const id of ["generate","save","approveAll","protectCommute","reset"])$(id).disabled=!loaded;
     $("weeks").replaceChildren();$("detailBody").replaceChildren();
     if(!loaded){$("modeBadge").textContent="Calendar extract · Offline prototype";$("weeks").textContent="Your six-week plan will appear here after import.";$("detailTitle").textContent="Select a day";$("detailBody").textContent="Import your calendar, then select a day to see its calendar and focus time.";return;}
     const snapshot=plan.snapshot,zoneLabel=snapshot.timeZone==="America/New_York"?"Eastern Time":snapshot.timeZone,today=P.localParts(new Date().toISOString(),snapshot.timeZone).date,days=P.workdays(snapshot).filter(d=>d>=today),busy=P.intervals(snapshot);
@@ -273,7 +273,7 @@
       if(window.FocusLocalCalendar&&raw?.schema!=="focus-planner-plan")raw=window.FocusLocalCalendar.snapshotFromJSON(raw,new Date(file.lastModified||Date.now()).toISOString());
       // Validate before asking to replace anything or touching saved state.
       if(raw.schema==="focus-planner-plan")P.validatePlan(raw);else P.validateSnapshot(raw);
-      if(plan&&!window.confirm("Replace this browser's current plan? Download a backup first if you want to keep it."))return;
+      if(plan&&!window.confirm("Replace this browser's current plan? Current planning decisions will be replaced."))return;
       if(calendarConnection)await calendarConnection.disconnect();
       open(raw,raw.schema!=="focus-planner-plan");
     }catch(error){say("Import failed: "+error.message);}
@@ -283,10 +283,6 @@
   $("generate").addEventListener("click",()=>{const n=P.generate(plan);if(persist(n?`Added ${n} proposed blocks. Approvals save locally; Outlook is unchanged.`:"")&&!n)say("");render();});
   $("approveAll").addEventListener("click",()=>{let n=0;for(const s of plan.sessions)if(s.status==="proposed"&&approveable(s)){s.status="approved";n++;}persist(`Approved ${n} blocks locally. They are not reserved in Outlook.`);render();});
   $("save").addEventListener("click",()=>persist());
-  $("export").addEventListener("click",()=>{
-    persist();const url=URL.createObjectURL(new Blob([JSON.stringify(plan,null,2)],{type:"application/json"}));
-    const a=document.createElement("a");a.href=url;a.download=`focus-plan-${plan.snapshot.windowStart}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
-  });
   $("reset").addEventListener("click",()=>{if(!plan||!window.confirm("Clear local planning decisions and regenerate from the same calendar extract?"))return;const next=P.createPlan(plan.snapshot,new Date().toISOString(),plan.config);P.generate(next);plan=next;persist();render();});
   $("protectCommute").addEventListener("change",event=>{
     const protect=event.target.checked;
@@ -294,7 +290,7 @@
     plan=P.createPlan(plan.snapshot,new Date().toISOString(),{protectCommute:protect});P.generate(plan);persist();render();
   });
   let saved=null;
-  try{saved=localStorage.getItem(KEY);}catch(_){say("Browser storage is unavailable. Download your plan to keep your results.");}
+  try{saved=localStorage.getItem(KEY);}catch(_){say("Browser storage is unavailable. Changes may be lost when you close or reload the page.");}
   if(saved){try{plan=P.validatePlan(JSON.parse(saved));selected=P.workdays(plan.snapshot)[0];if(persist(""))$("saveStatus").textContent="Restored saved plan";}catch(_){say("The saved plan could not be restored. It has not been overwritten; import a valid backup to continue.");}}
   else if($("bootstrap")){
     try{open(JSON.parse($("bootstrap").textContent),true);}catch(e){say("Could not load the bundled extract: "+e.message);}

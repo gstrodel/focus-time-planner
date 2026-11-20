@@ -300,7 +300,7 @@ Microsoft references: [Outlook connector and paging limits](https://learn.micros
 1. Download the app files together (`index.html`, `planner.js`, `local-calendar.js`, `ical.js`, `app.js`). Open `index.html` in Edge or Chrome, or serve the folder with `py -m http.server 8000` and open `http://localhost:8000/`.
 2. Click **Connect calendar folder** and choose `C:\Users\<username>\OneDrive - <organization>\SuperlistSync`. The app reads `calendar_events.json` immediately and checks every minute while open. You can also use **Import** for a one-time calendar extract or saved plan. Proposals are generated automatically.
 3. Select a day and approve or reject blocks. **Approve all proposals** approves future blocks locally. Use **Add more focus time** to select an available window, start time and duration, including longer than two hours. Use **Extend 30 min** to lengthen a future local block; the revised block returns to proposed status for approval.
-4. Every change saves automatically to this browser. **Save plan** explicitly saves it again. **Download plan** exports the extract, planning decisions together as JSON. Import that file to resume in another browser or device.
+4. Every change saves automatically to this browser. **Save plan** explicitly saves the calendar extract, planning preferences, and decisions again in this browser's local storage on this computer. The plan is restored when you reopen the app at the same origin or local file path. Saving does not create a file, update OneDrive or Outlook, or sync across browsers/devices. There is no plan JSON download; previously saved plan JSON files can still be imported.
 5. When upcoming proposals are approved or rejected and upcoming conflicts dismissed, click **Export to Outlook (.ics)**. Choose a save location, then import the file into your main Outlook work calendar as described below.
 
 ## Export focus reservations to Outlook
@@ -313,7 +313,7 @@ In **Outlook on the web**, open **Calendar → Add calendar → Upload from file
 
 This is a one-time import, not calendar synchronization. Exporting never writes to Microsoft 365. Reimporting a file may create duplicate appointments, even though event UIDs are stable within a plan. The app cannot verify an Outlook import succeeded. Later edits, extensions, rejections, rebuilds or removals in the app do not update or cancel previously imported appointments; change those in Outlook before importing a revised block. Refresh your Power Automate export after importing so reservations appear as existing calendar focus and are excluded from future exports. Demo exports contain synthetic reservations; import your real calendar before booking.
 
-A privately supplied, self-contained HTML test copy can include an extract already loaded. Open that file in your browser; all code is bundled and no network requests are needed. Download your plan as a backup, since browser storage may be cleared or may not be available for local files. Keep the same local filename/path when reopening. A saved plan already in the browser takes precedence over bundled data.
+A privately supplied, self-contained HTML test copy can include an extract already loaded. Open that file in your browser; all code is bundled and no network requests are needed. Browser storage may be cleared or may not be available for local files; local planning decisions are lost if that storage is cleared. Keep the same local filename/path when reopening. A saved plan already in the browser takes precedence over bundled data.
 
 No real calendar extract or generated personal plan belongs in this repository. The app starts empty. To try synthetic data, import `demo-calendar.json` using the normal JSON import; there is no demo button. The example has a fixed six-week window beginning November 19, 2026; update its window and event dates when using it later. The previous v0.2 read-only adapter remains in `outlook.js` for a later release, but this release does not load it or its Microsoft authentication dependency.
 
@@ -423,7 +423,7 @@ The planner uses the snapshot's timezone rather than the computer's timezone, in
 - The extract and plan stay in memory and localStorage under `focus-planner-v0.4`. They persist across midnight and reloads, with the snapshot's fixed date window. Imported files are not uploaded by this app.
 - Results reflect the most recently read export. Folder connections check every minute and when the page regains focus; background tabs may be throttled. Changes appear after Power Automate runs and OneDrive syncs. The capture timestamp is always visible. Conflict recovery uses the latest export, with no direct Outlook connection.
 - Recheck current availability before importing reservations. Outlook booking requires a manual `.ics` import; direct Outlook writes, notifications, closed-page background jobs and cloud plan storage are not implemented.
-- Browser-local data is specific to that browser/origin and may be cleared. Export JSON for a portable backup. If localStorage fails, the app reports it and keeps download available.
+- Browser-local data is specific to that browser/origin and may be cleared. There is no plan JSON download. If localStorage fails, the app reports that changes may be lost when closing or reloading; the current plan stays open in memory.
 - Legacy v0.1–v0.3 storage is left untouched and not migrated. The scheduler is deterministic, not machine learning.
 
 ## Validation
@@ -440,7 +440,7 @@ The optional browser test requires Playwright, Chromium, and an environment that
 node tests/browser.cjs
 ```
 
-It covers import, approvals, rejection, reload, download/restore, malformed imports, storage failure, an offline load and a narrow viewport. `PLAYWRIGHT_MODULE` and `CHROMIUM_PATH` can point to an existing local installation.
+It covers import, approvals, rejection, reload, local save/restore, malformed imports, storage failure, an offline load and a narrow viewport. `PLAYWRIGHT_MODULE` and `CHROMIUM_PATH` can point to an existing local installation.
 
 
 
