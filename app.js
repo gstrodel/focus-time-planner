@@ -284,8 +284,9 @@
   window.addEventListener("focus",renderCalendarExport);
   if(window.FocusLocalCalendar){
     const supported=typeof window.showDirectoryPicker==="function";
-    const status=message=>{
+    const status=(message,{stale=false}={})=>{
       $("calendarFileStatus").textContent=message;
+      $("calendarFileStatus").style.color=stale?"#b42318":"";
       $("refreshCalendar").disabled=!calendarConnection?.handle;
       $("disconnectCalendar").disabled=!calendarConnection?.handle;
     };
