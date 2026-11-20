@@ -24,6 +24,51 @@ test('app imports, generates, approves, saves and restores actual user decisions
  const before=app.state().sessions.length;app.nodes.approveAll.click();assert.ok(app.state().sessions.some(s=>s.status==='approved'));app.nodes.generate.click();assert.equal(app.state().sessions.length,before);
  const restored=boot(app.storage);assert.deepEqual(restored.state(),app.state());assert.equal(restored.nodes.saveStatus.textContent,'Restored saved plan');assert.match(restored.nodes.reserved.textContent,/h$/);
 });
+function fullyBookedSnapshot(){
+ const raw=P.demo();raw.source='outlook-extract';raw.windowStart=P.addDays(raw.windowStart,1);raw.windowEnd=P.addDays(raw.windowStart,42);
+ raw.events=P.workdays(raw).map(date=>({id:'focus-'+date,start:date+'T14:30:00Z',end:date+'T18:30:00Z',kind:'existing-focus',status:'busy',title:'Focus Time'}));
+ return raw;
+}
+test('fully planned banner confirms refreshed Outlook reservations and excludes full-day PTO',async()=>{
+ const app=boot();assert.equal(app.nodes.planCompletion.hidden,true);
+ const raw=fullyBookedSnapshot(),off=P.workdays(raw)[0];
+ raw.events=raw.events.filter(e=>!e.id.endsWith(off));raw.events.push({id:'pto',start:off+'T00:00:00Z',end:P.addDays(off,1)+'T00:00:00Z',status:'oof',kind:'busy',allDay:true,title:'PTO'});
+ await app.import(raw);
+ assert.equal(app.state().sessions.some(s=>s.status==='proposed'),false);
+ assert.equal(app.nodes.planCompletion.hidden,false);
+ assert.equal(app.nodes.planCompletionTitle.textContent,'✅ All applicable focus days are fully planned');
+ assert.match(app.nodes.planCompletionDetail.textContent,/All 29 applicable working days/);
+ assert.match(app.nodes.planCompletionDetail.textContent,/already reserved in your latest Outlook calendar file/);
+ assert.equal(boot(app.storage).nodes.planCompletion.hidden,false);
+});
+test('approved plans show completion with an export reminder; proposals and removed approvals do not',async()=>{
+ const app=boot(),raw=fullyBookedSnapshot();raw.events.pop();await app.import(raw);
+ assert.equal(app.nodes.planCompletion.hidden,true);app.nodes.approveAll.click();
+ assert.equal(app.nodes.planCompletion.hidden,false);assert.match(app.nodes.planCompletionDetail.textContent,/Export approved blocks/);
+ assert.doesNotMatch(app.nodes.planCompletionDetail.textContent,/already reserved/);
+ const approved=app.state().sessions.find(s=>s.status==='approved');descendants(app.nodes.weeks).find(e=>e.dataset.date===approved.date).click();
+ descendants(app.nodes.detailBody).find(e=>e.textContent==='Remove from plan').click();assert.equal(app.nodes.planCompletion.hidden,true);
+});
+test('no proposals caused by a full meeting day or insufficient focus does not mean fully planned',async()=>{
+ const app=boot(),raw=fullyBookedSnapshot(),date=P.workdays(raw)[0];
+ raw.events=raw.events.filter(e=>!e.id.endsWith(date));raw.events.push({id:'full-meeting-day',start:date+'T13:00:00Z',end:date+'T23:00:00Z',status:'busy',kind:'busy'});
+ await app.import(raw);assert.equal(app.state().sessions.some(s=>s.status==='proposed'),false);assert.equal(app.nodes.planCompletion.hidden,true);
+ const partial=fullyBookedSnapshot();partial.events[0].end=partial.events[0].start.replace('14:30','16:30');
+ const plan=P.createPlan(partial);plan.savedAt=new Date().toISOString();const restored=boot(new Map([['focus-planner-v0.4',JSON.stringify(plan)]]));
+ assert.equal(restored.nodes.planCompletion.hidden,true);
+});
+test('completion requires continuous focus and no unresolved conflicts, with at least one upcoming workday',()=>{
+ const raw=fullyBookedSnapshot(),date=P.workdays(raw)[0];raw.events=raw.events.filter(e=>!e.id.endsWith(date));
+ raw.events.push(...[['14:00','15:00'],['15:30','16:30'],['17:00','18:00'],['18:30','19:30']].map(([start,end],i)=>({id:'fragment-'+i,start:date+'T'+start+':00Z',end:date+'T'+end+':00Z',kind:'existing-focus',status:'busy'})));
+ const restored=plan=>{plan.savedAt=new Date().toISOString();return boot(new Map([['focus-planner-v0.4',JSON.stringify(plan)]]));};
+ assert.equal(restored(P.createPlan(raw)).nodes.planCompletion.hidden,true);
+ const conflicted=P.createPlan(fullyBookedSnapshot());conflicted.sessions.push({id:conflicted.nextId++,date,start:600,end:720,status:'conflicted'});
+ assert.equal(restored(conflicted).nodes.planCompletion.hidden,true);
+ const off=fullyBookedSnapshot();off.events=P.workdays(off).map(d=>({id:'off-'+d,start:d+'T00:00:00Z',end:P.addDays(d,1)+'T00:00:00Z',kind:'busy',status:'oof',allDay:true}));
+ assert.equal(restored(P.createPlan(off)).nodes.planCompletion.hidden,true);
+ const past=fullyBookedSnapshot();past.windowStart=P.addDays(past.windowStart,-50);past.windowEnd=P.addDays(past.windowStart,42);past.events=[];
+ assert.equal(restored(P.createPlan(past)).nodes.planCompletion.hidden,true);
+});
 test('malformed input cannot overwrite saved state, and denied storage remains visible',async()=>{
  const app=boot();await app.import(P.demo());const before=JSON.stringify(app.state());await app.import({schema:'bad'});assert.equal(JSON.stringify(app.state()),before);assert.match(app.nodes.notice.textContent,/Import failed/);
  app.localStorage.setItem=()=>{throw Error('quota')};app.nodes.save.click();assert.match(app.nodes.notice.textContent,/could not save/);assert.equal(app.nodes.export,undefined);assert.match(app.nodes.notice.textContent,/Changes may be lost/);
@@ -162,5 +207,4 @@ test('coverage cards show month labels, exclude days off from targets and explai
  assert.equal(details.some(e=>e.textContent==='Add more focus time'),false);
  assert.equal(app.state().sessions.some(s=>s.date===date&&P.ACTIVE.has(s.status)),false);
 });
-
 
