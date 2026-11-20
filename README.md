@@ -12,7 +12,7 @@ The app runs locally in your browser. Power Automate and OneDrive keep its calen
 ## End-to-end workflow
 
 ```mermaid
-flowchart TD
+flowchart LR
     subgraph setup["1. Create the Power Automate flow"]
         A["Outlook Calendar"] --> B["Power Automate exports the next 42 days every 30 minutes"]
         B --> C["OneDrive syncs calendar_events.json to your computer"]
